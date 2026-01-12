@@ -3,7 +3,7 @@ compatibility_date = "2026-01-01"
 pages_build_output_dir = "./public"
 
 [vars]
-SITE_URL = "https://your-blog.pages.dev"
+SITE_URL = "https://your-blog-name.pages.dev" # https.//{name}.pages.dev となるように
 SITE_TITLE = "Your Blog Title"
 SITE_DESCRIPTION = "Your blog description"
 
