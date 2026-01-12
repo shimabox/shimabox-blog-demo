@@ -2,6 +2,9 @@
 
 Hono と Cloudflare Pages を使ったブログテンプレートです。
 
+> [!NOTE]
+> https://blog.shimabox.net で実際に運用しているブログの元です
+
 ## 特徴
 
 - **Hono**: 軽量で高速なWebフレームワーク
