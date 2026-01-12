@@ -10,6 +10,12 @@ image: "/images/2026/01/hello-world.png"
 
 このブログは **Hono + Cloudflare Pages + R2** で構築されています。
 
+### このブログのソースコード
+
+GitHubで公開しています: [shimabox/shimabox-blog-demo](https://github.com/shimabox/shimabox-blog-demo)
+
+セットアップからデプロイまでの詳細な手順は [README](https://github.com/shimabox/shimabox-blog-demo/blob/main/README.md) を参照してください。
+
 ## 技術スタック
 
 | 技術 | 用途 |
