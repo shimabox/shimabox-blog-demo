@@ -73,24 +73,32 @@ npx wrangler kv namespace create CACHE --preview
 
 ### 3. wrangler.toml の設定
 
+`name` はCloudflare Pages全体でユニークである必要があります。この値がブログのURLになります。
+
+```
+https://{name}.pages.dev
+```
+
+例: `name = "my-tech-blog"` → `https://my-tech-blog.pages.dev`
+
 ```toml
-name = "your-blog-name"
+name = "your-blog-name"  # ユニークな名前に変更（これがURLになります）
 compatibility_date = "2026-01-01"
 pages_build_output_dir = "./public"
 
 [vars]
-SITE_URL = "https://your-blog.pages.dev" # あなたのブログURL
-SITE_TITLE = "Your Blog Title" # あなたのブログタイトル
-SITE_DESCRIPTION = "Your blog description" # あなたのブログ説明
+SITE_URL = "https://your-blog-name.pages.dev" # あなたのブログURLに変更（https.//{name}.pages.dev となるように）
+SITE_TITLE = "Your Blog Title" # あなたのブログタイトルに変更
+SITE_DESCRIPTION = "Your blog description" # あなたのブログ説明に変更
 
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "your-blog-content"  # 作成したバケット名
+bucket_name = "your-blog-content"  # 作成したバケット名に変更
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "your-kv-namespace-id"          # KV作成時に表示されたID
-preview_id = "your-kv-preview-id"    # preview用のID
+id = "your-kv-namespace-id"          # KV作成時に表示されたIDに変更
+preview_id = "your-kv-preview-id"    # preview用のIDに変更
 ```
 
 ### 4. フォントの準備
@@ -120,7 +128,9 @@ OGP画像に表示するアバター画像を配置します。
 
 - `wrangler.toml` - サイト情報
 - `dev-server.tsx` - 開発用サイト情報
+  - `SITE_TITLE`, `SITE_DESCRIPTION`
 - `scripts/sync.ts` - R2バケット名
+  - `const BUCKET = "your-blog-content";` を自分のバケット名に変更
 - `scripts/generate-ogp.ts` - サイト情報、アバターパス
 
 ### 7. ローカル開発
@@ -224,6 +234,9 @@ npm run deploy
 
 mainブランチへのpushで自動デプロイが実行されます。
 
+> [!IMPORTANT]
+> deploy.yml は直前のコミットとの差分を検知して同期するため、PRをマージする際は **Squash and merge** を使用してください。通常のマージだと差分検知が正しく動作しない場合があります。
+
 ### 必要なSecrets
 
 GitHub リポジトリの Settings > Secrets and variables > Actions で以下を設定します。
@@ -249,6 +262,42 @@ Cloudflare Dashboard > My Profile > API Tokens で「Create Token」から作成
 | Account / Workers Scripts | Edit |
 
 Account Resourcesで対象のアカウントを選択してください。
+
+### Account ID の確認
+
+Cloudflare Dashboard > Workers & Pages を開くと、右サイドバーに「Account ID」が表示されています。
+
+または、ダッシュボードのURLから確認できます:
+```
+https://dash.cloudflare.com/xxxxxxxxxxxxxxxxxxxxxxx/workers-and-pages
+                            ^^^^^^^^^^^^^^^^^^^^^^^^
+                            この部分がAccount ID
+```
+
+### ADMIN_KEY の設定
+
+`ADMIN_KEY` はキャッシュ無効化APIを保護するための秘密鍵です。自分で任意の文字列を生成して設定してください。
+
+```bash
+# 例: ランダムな文字列を生成
+openssl rand -hex 32
+```
+
+生成した値を GitHub Secrets と Cloudflare Dashboard の環境変数の両方に設定します。
+
+**Cloudflare Dashboard での設定方法**
+
+1. Workers & Pages > 対象のプロジェクト を開く
+2. Settings > Variables and Secrets を選択
+3. 「Add」ボタンをクリック
+4. Variable name に `ADMIN_KEY`、Value に生成した値を入力
+5. Type を「Secret」に変更（値が隠されます）
+6. 「Deploy」ボタンで保存
+
+### SITE_URL の設定
+
+`SITE_URL` にはブログの公開URLを設定してください。  
+例: `https://your-blog-name.pages.dev`
 
 ### Environment の作成
 
