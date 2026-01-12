@@ -32,15 +32,19 @@ http://localhost:8787 でアクセスできます。
 
 ## セットアップ
 
-### 1. リポジトリをフォークまたはクローン
+### 1. リポジトリをフォーク
 
-GitHubでこのリポジトリをフォークするか、クローンして使用してください。
+GitHubでこのリポジトリをフォークしてください。
 
 ```bash
+# フォークしたリポジトリをクローン
 git clone https://github.com/your-account/your-blog.git
 cd your-blog
 npm install
 ```
+
+> [!NOTE]
+> ローカルで動かすだけならクローンでもOKですが、デプロイまでやるならフォークが必要です。
 
 ### 2. Cloudflare リソースの作成
 
