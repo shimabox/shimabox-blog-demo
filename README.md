@@ -175,10 +175,10 @@ npm run sync               # 全コンテンツをR2に同期
 npm run sync -- slug-name  # 特定記事のみ同期
 
 # OGP画像
-npm run generate-ogp                # 未生成のOGP生成
-npm run generate-ogp:force          # 全OGP上書き生成
-npm run generate-ogp -- slug        # 特定記事のOGP生成
-npm run generate-ogp:force -- slug  # 特定記事のOGP上書き生成
+npm run generate-ogp                  # 未生成のOGP生成
+npm run generate-ogp:force            # 全OGP上書き生成
+npm run generate-ogp -- slug          # 特定記事のOGP生成
+npm run generate-ogp -- slug --force  # 特定記事のOGP上書き生成
 
 # デプロイ
 npm run deploy  # Pages デプロイ

@@ -156,7 +156,7 @@ npm run generate-ogp -- slug
 
 生成コマンド（強制上書き）
 ```bash
-npm run generate-ogp:force -- slug
+npm run generate-ogp -- slug --force
 ```
 
 ### 全記事のOGP画像を生成
