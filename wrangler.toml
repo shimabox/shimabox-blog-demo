@@ -9,9 +9,9 @@ SITE_DESCRIPTION = "Your blog description"
 
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "shimabox-blog-demo"  # npx wrangler r2 bucket create your-blog-content で作成
+bucket_name = "your-blog-content"  # npx wrangler r2 bucket create your-blog-content で作成
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "9c2fcd2357324141bf3e3b616084a9aa"          # npx wrangler kv namespace create CACHE で取得
-preview_id = "f1d5fea87c0740e18c5482d3168b0e37"    # npx wrangler kv namespace create CACHE --preview で取得
+id = "your-kv-namespace-id"          # npx wrangler kv namespace create CACHE で取得
+preview_id = "your-kv-preview-id"    # npx wrangler kv namespace create CACHE --preview で取得
