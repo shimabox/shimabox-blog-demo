@@ -1,0 +1,17 @@
+node_modules/
+.wrangler/
+dist/
+
+.dev.vars
+
+# ローカル開発用
+*.local
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# claude
+.claude/settings.local.json

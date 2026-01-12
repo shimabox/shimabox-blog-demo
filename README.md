@@ -1,2 +1,336 @@
 # shimabox-blog-demo
-A blog template built with Hono and Cloudflare Pages.
+
+Hono と Cloudflare Pages を使ったブログテンプレートです。
+
+## 特徴
+
+- **Hono**: 軽量で高速なWebフレームワーク
+- **Cloudflare Pages**: エッジでの高速配信
+- **Cloudflare R2**: 記事・画像の保存（S3互換、エグレス無料）
+- **Cloudflare KV**: キャッシュ
+- **OGP画像自動生成**: Satori + resvg-js
+- **ダークモード対応**: システム設定連動 + 手動切り替え
+- **シンタックスハイライト**: highlight.js (CDN)
+- **RSSフィード**: 自動生成
+- **Markdown**: 記事はMarkdownで記述
+
+## おためし
+
+リポジトリをForkまたはCloneして、ローカルで動作確認できます。
+
+```bash
+git clone https://github.com/shimabox/shimabox-blog-demo.git
+cd shimabox-blog-demo
+npm install
+npm run dev
+```
+
+http://localhost:8787 でアクセスできます。
+
+## セットアップ
+
+### 1. リポジトリをフォークまたはクローン
+
+GitHubでこのリポジトリをフォークするか、クローンして使用してください。
+
+```bash
+git clone https://github.com/your-account/your-blog.git
+cd your-blog
+npm install
+```
+
+### 2. Cloudflare リソースの作成
+
+Cloudflareアカウントが必要です。まだお持ちでない場合は [Cloudflare](https://dash.cloudflare.com/sign-up) で無料アカウントを作成してください。
+
+初回は `wrangler login` でCloudflareにログインしてください。
+
+```bash
+npx wrangler login
+```
+
+その後、以下のコマンドでリソースを作成します。  
+後続の、`wrangler.toml の設定` で使用するので、表示されるIDは控えておいてください。
+
+```bash
+# R2 バケット作成
+npx wrangler r2 bucket create your-blog-content
+
+# KV namespace 作成
+npx wrangler kv namespace create CACHE
+npx wrangler kv namespace create CACHE --preview
+```
+
+- R2 バケット名
+  - your-blog-content
+  - お好みでどうぞ
+- KV namespace id
+  - `npx wrangler kv namespace create CACHE` で作成時に表示されたid
+  - `CACHE` は変更可能です
+- KV namespace id(preview用)
+  - `npx wrangler kv namespace create CACHE --preview` で作成時に表示されたid
+  - `CACHE` は変更可能です
+
+### 3. wrangler.toml の設定
+
+```toml
+name = "your-blog-name"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "./public"
+
+[vars]
+SITE_URL = "https://your-blog.pages.dev" # あなたのブログURL
+SITE_TITLE = "Your Blog Title" # あなたのブログタイトル
+SITE_DESCRIPTION = "Your blog description" # あなたのブログ説明
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "your-blog-content"  # 作成したバケット名
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"          # KV作成時に表示されたID
+preview_id = "your-kv-preview-id"    # preview用のID
+```
+
+### 4. フォントの準備
+
+OGP画像生成用のフォントをダウンロードして配置します。  
+すでに配置済みですが、必要に応じて更新してください。
+
+```bash
+mkdir -p fonts
+# Google Fonts から Noto Sans JP をダウンロード
+# https://fonts.google.com/noto/specimen/Noto+Sans+JP
+# NotoSansJP-Bold.ttf を fonts/ に配置
+```
+
+### 5. アバター画像の配置
+
+OGP画像に表示するアバター画像を配置します。  
+無くても動作しますが、あると見栄えが良くなります。
+
+```bash
+# content/images/avatar.png にアバター画像を配置
+```
+
+### 6. 設定ファイルの更新
+
+以下のファイルで `TODO` コメントを検索し、自分の設定に変更してください。
+
+- `wrangler.toml` - サイト情報
+- `dev-server.tsx` - 開発用サイト情報
+- `scripts/sync.ts` - R2バケット名
+- `scripts/generate-ogp.ts` - サイト情報、アバターパス
+
+### 7. ローカル開発
+
+```bash
+npm run dev
+# http://localhost:8787 でアクセス
+```
+
+### 8. 初回デプロイ
+
+```bash
+# OGP画像生成
+npm run generate-ogp
+
+# R2にコンテンツを同期
+npm run sync
+
+# Cloudflare Pages にデプロイ
+npm run deploy
+```
+
+## コマンド一覧
+
+```bash
+# 開発
+npm run dev  # 開発サーバー起動（LiveReload対応）
+
+# コンテンツ同期
+npm run sync               # 全コンテンツをR2に同期
+npm run sync -- slug-name  # 特定記事のみ同期
+
+# OGP画像
+npm run generate-ogp                # 未生成のOGP生成
+npm run generate-ogp:force          # 全OGP上書き生成
+npm run generate-ogp -- slug        # 特定記事のOGP生成
+npm run generate-ogp:force -- slug  # 特定記事のOGP上書き生成
+
+# デプロイ
+npm run deploy  # Pages デプロイ
+
+# Lint/Format
+npm run check      # Biome チェック
+npm run check:fix  # チェック＆自動修正
+```
+
+## 記事の追加
+
+### 1. 記事ファイルを作成
+
+`content/posts/YYYY-MM-DD-slug.md` という形式でファイルを作成します。
+
+```yaml
+---
+title: "記事タイトル"
+slug: "article-slug"
+date: "2026-01-15"
+categories: ["カテゴリ1", "カテゴリ2"]
+image: "/images/2026/01/thumbnail.png"  # オプション
+---
+
+記事の本文をMarkdownで記述
+```
+
+#### スラッシュコマンド（Claude Code）
+
+`/new-post` コマンドで簡単に記事を作成できます。
+
+```
+/new-post 記事のタイトル
+```
+
+実行すると
+
+1. 日本語タイトルを英語slugに自動変換
+2. 記事ファイル（`content/posts/YYYY-MM-DD-slug.md`）を作成
+3. 画像ディレクトリを作成
+4. サムネイル画像生成用のプロンプトを出力
+
+をしてくれます。
+
+### 2. OGP画像生成
+
+```bash
+npm run generate-ogp -- article-slug
+```
+
+### 3. R2に同期
+
+```bash
+npm run sync -- article-slug
+```
+
+### 4. デプロイ
+
+```bash
+npm run deploy
+```
+
+## GitHub Actions
+
+mainブランチへのpushで自動デプロイが実行されます。
+
+### 必要なSecrets
+
+GitHub リポジトリの Settings > Secrets and variables > Actions で以下を設定します。
+
+| Secret | 説明 |
+|--------|------|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API トークン |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare アカウントID |
+| `SITE_URL` | デプロイ先URL（キャッシュウォーム用） |
+| `ADMIN_KEY` | キャッシュ無効化API用キー |
+
+### API Token の作成
+
+Cloudflare Dashboard > My Profile > API Tokens で「Create Token」から作成します。
+
+必要なPermissions:
+
+| Permission | Access |
+|------------|--------|
+| Account / Cloudflare Pages | Edit |
+| Account / Workers R2 Storage | Edit |
+| Account / Workers KV Storage | Edit |
+| Account / Workers Scripts | Edit |
+
+Account Resourcesで対象のアカウントを選択してください。
+
+### Environment の作成
+
+GitHub リポジトリの Settings > Environments で `production` と `preview` を作成し、上記のSecretsを設定してください。
+
+## ディレクトリ構成
+
+```
+├── content/            # コンテンツ
+│   ├── posts/          # 記事（YYYY-MM-DD-slug.md）
+│   ├── pages/          # 固定ページ
+│   └── images/         # 画像、OGP画像（ogp/）
+├── fonts/              # フォント（.gitignore）
+├── functions/          # Pages Functions
+│   └── [[path]].ts     # エントリポイント
+├── public/             # 静的ファイル
+│   ├── styles.css      # メインCSS
+│   └── _routes.json    # 静的ファイルルーティング
+├── scripts/            # ユーティリティスクリプト
+│   ├── sync.ts         # R2同期
+│   └── generate-ogp.ts # OGP画像生成
+├── src/                # アプリケーションコード
+│   ├── index.tsx       # ルーティング
+│   ├── markdown.ts     # Markdownパーサー
+│   ├── repository.ts   # R2/KV操作
+│   ├── rss.ts          # RSSフィード
+│   ├── types.ts        # 型定義
+│   └── views/          # JSXコンポーネント
+├── dev-server.tsx      # 開発サーバー
+├── biome.json
+├── package.json
+├── tsconfig.json
+└── wrangler.toml
+```
+
+## URL構成
+
+| パス | 内容 |
+|------|------|
+| `/` | 記事一覧 |
+| `/page/:page/` | ページネーション |
+| `/YYYY/MM/DD/slug/` | 記事詳細 |
+| `/category/:name/` | カテゴリ一覧 |
+| `/about/` | About ページ |
+| `/privacypolicy/` | プライバシーポリシー |
+| `/feed/` | RSS |
+| `/ogp/slug.png` | OGP画像 |
+| `/images/*` | 画像配信 |
+
+## Markdown記法
+
+### 埋め込み対応
+
+記事内のURLを自動的に埋め込みカードに変換
+
+- **X (Twitter)**: `https://x.com/user/status/123`
+- **YouTube**: `https://www.youtube.com/watch?v=xxx`
+- **Gist**: `https://gist.github.com/user/gist_id`
+
+### GitHub Alerts
+
+```markdown
+> [!NOTE]
+> 補足情報
+
+> [!TIP]
+> ヒント
+
+> [!IMPORTANT]
+> 重要な情報
+
+> [!WARNING]
+> 警告
+
+> [!CAUTION]
+> 注意
+```
+
+### 絵文字ショートコード
+
+`:smile:` → 😄、`:rocket:` → 🚀 など自動変換。
+
+## ライセンス
+
+[MIT](https://github.com/shimabox/shimabox-blog-demo/blob/main/LICENSE)

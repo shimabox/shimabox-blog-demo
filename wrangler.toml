@@ -1,0 +1,17 @@
+name = "your-blog-name"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "./public"
+
+[vars]
+SITE_URL = "https://your-blog.pages.dev"
+SITE_TITLE = "Your Blog Title"
+SITE_DESCRIPTION = "Your blog description"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "your-blog-content"  # npx wrangler r2 bucket create your-blog-content で作成
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"          # npx wrangler kv namespace create CACHE で取得
+preview_id = "your-kv-preview-id"    # npx wrangler kv namespace create CACHE --preview で取得

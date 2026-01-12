@@ -1,0 +1,232 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - '.gitignore'
+      - 'LICENSE'
+  workflow_dispatch:
+    inputs:
+      deploy_type:
+        description: 'デプロイタイプ'
+        required: true
+        default: 'diff'
+        type: choice
+        options:
+          - diff   # 差分syncしてdeploy
+          - full   # 全件syncしてdeploy
+          - slug   # 指定slugのみsyncしてdeploy
+          - deploy # deployのみ（syncなし）
+      slug:
+        description: 'slug（deploy_type=slugの場合に指定）'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint check
+        if: github.event_name == 'pull_request'
+        run: npm run check
+
+      # 差分sync（push時 or workflow_dispatch で diff 選択時）
+      - name: Detect changed posts
+        id: detect
+        if: github.event_name == 'push' || github.event.inputs.deploy_type == 'diff'
+        run: |
+          CHANGED_FILES=$(git -c core.quotepath=false diff --name-only HEAD~1 HEAD -- 'content/posts/*.md' 'content/pages/*.md' 'content/images/**' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No content changes detected"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          SLUGS=""
+          WARM_URLS=""
+
+          add_slug() {
+            local slug="$1"
+            if [[ " $SLUGS " == *" $slug "* ]]; then
+              return
+            fi
+            local md_file=$(find content/posts -name "*-${slug}.md" 2>/dev/null | head -1)
+            if [ -n "$md_file" ]; then
+              local filename=$(basename "$md_file" .md)
+              local date_part=$(echo "$filename" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+              if [ -n "$date_part" ]; then
+                local year=$(echo "$date_part" | cut -d'-' -f1)
+                local month=$(echo "$date_part" | cut -d'-' -f2)
+                local day=$(echo "$date_part" | cut -d'-' -f3)
+                SLUGS="$SLUGS $slug"
+                WARM_URLS="$WARM_URLS /$year/$month/$day/$slug/"
+              fi
+            fi
+          }
+
+          for file in $CHANGED_FILES; do
+            if [[ "$file" == content/posts/*.md ]]; then
+              filename=$(basename "$file" .md)
+              slug=$(echo "$filename" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+              date_part=$(echo "$filename" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+              year=$(echo "$date_part" | cut -d'-' -f1)
+              month=$(echo "$date_part" | cut -d'-' -f2)
+              day=$(echo "$date_part" | cut -d'-' -f3)
+              SLUGS="$SLUGS $slug"
+              WARM_URLS="$WARM_URLS /$year/$month/$day/$slug/"
+            elif [[ "$file" == content/images/* ]]; then
+              image_path="/${file#content/}"
+              for md in $(grep -l "$image_path" content/posts/*.md 2>/dev/null || true); do
+                ref_filename=$(basename "$md" .md)
+                ref_slug=$(echo "$ref_filename" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+                add_slug "$ref_slug"
+              done
+            fi
+          done
+
+          echo "slugs=$SLUGS" >> $GITHUB_OUTPUT
+          echo "warm_urls=$WARM_URLS" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+
+      - name: Sync changed content to R2
+        id: sync
+        if: (github.event_name == 'push' || github.event.inputs.deploy_type == 'diff') && steps.detect.outputs.has_changes == 'true'
+        run: |
+          SLUGS="${{ steps.detect.outputs.slugs }}"
+          SYNCED_SLUGS=""
+
+          if [ -n "$SLUGS" ]; then
+            for slug in $SLUGS; do
+              echo "Syncing: $slug"
+              npm run sync -- "$slug"
+              SYNCED_SLUGS="$SYNCED_SLUGS $slug"
+            done
+          fi
+
+          echo "synced_slugs=$SYNCED_SLUGS" >> $GITHUB_OUTPUT
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Sync all content to R2
+        if: github.event.inputs.deploy_type == 'full'
+        run: npm run sync
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Sync specified slug to R2
+        id: sync_slug
+        if: github.event.inputs.deploy_type == 'slug' && github.event.inputs.slug != ''
+        run: |
+          SLUG="${{ github.event.inputs.slug }}"
+          echo "Syncing specified slug: $SLUG"
+          npm run sync -- "$SLUG"
+          echo "synced_slugs=$SLUG" >> $GITHUB_OUTPUT
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy to Pages
+        id: deploy
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s | iconv -c -f UTF-8 -t ASCII//TRANSLIT || echo "deploy")
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
+            npx wrangler pages deploy ./public --branch="$BRANCH_NAME" --commit-message="$COMMIT_MSG"
+          else
+            npx wrangler pages deploy ./public --commit-message="$COMMIT_MSG"
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Invalidate cache
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_type != 'deploy')
+        run: |
+          SYNCED_SLUGS="${{ steps.sync.outputs.synced_slugs }}${{ steps.sync_slug.outputs.synced_slugs }}"
+
+          if [ "${{ github.event.inputs.deploy_type }}" == "full" ]; then
+            echo "Invalidating all cache"
+            curl -X POST "${{ secrets.SITE_URL }}/api/invalidate" \
+              -H "X-Admin-Key: ${{ secrets.ADMIN_KEY }}" \
+              --fail-with-body || echo "Cache invalidation failed"
+          elif [ -n "$SYNCED_SLUGS" ]; then
+            for slug in $SYNCED_SLUGS; do
+              echo "Invalidating cache for: $slug"
+              curl -X POST "${{ secrets.SITE_URL }}/api/invalidate?slug=$slug" \
+                -H "X-Admin-Key: ${{ secrets.ADMIN_KEY }}" \
+                --fail-with-body || echo "Cache invalidation failed for $slug"
+            done
+          fi
+
+      - name: Warm cache
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_type != 'deploy')
+        run: |
+          BASE_URL="${{ secrets.SITE_URL }}"
+
+          if [ -z "$BASE_URL" ]; then
+            echo "SITE_URL secret is not set, skipping warm"
+            exit 0
+          fi
+
+          echo "Warming: $BASE_URL/"
+          curl -s "$BASE_URL/" > /dev/null || echo "Failed to warm top page"
+
+          WARM_URLS="${{ steps.detect.outputs.warm_urls }}"
+
+          if [ "${{ github.event.inputs.deploy_type }}" == "slug" ] && [ -n "${{ github.event.inputs.slug }}" ]; then
+            SLUG="${{ github.event.inputs.slug }}"
+            MD_FILE=$(find content/posts -name "*-${SLUG}.md" 2>/dev/null | head -1)
+            if [ -n "$MD_FILE" ]; then
+              FILENAME=$(basename "$MD_FILE" .md)
+              DATE_PART=$(echo "$FILENAME" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+              if [ -n "$DATE_PART" ]; then
+                YEAR=$(echo "$DATE_PART" | cut -d'-' -f1)
+                MONTH=$(echo "$DATE_PART" | cut -d'-' -f2)
+                DAY=$(echo "$DATE_PART" | cut -d'-' -f3)
+                WARM_URLS="/$YEAR/$MONTH/$DAY/$SLUG/"
+              fi
+            fi
+          fi
+
+          if [ -n "$WARM_URLS" ]; then
+            for url in $WARM_URLS; do
+              echo "Warming: ${BASE_URL}${url}"
+              curl -s "${BASE_URL}${url}" > /dev/null || echo "Failed to warm $url"
+            done
+          fi
