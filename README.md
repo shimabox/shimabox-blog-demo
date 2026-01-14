@@ -161,7 +161,7 @@ npm run dev
 > デプロイ前に、Cloudflare側に環境変数 `ADMIN_KEY` を設定してください。
 > `ADMIN_KEY` が未設定の場合、キャッシュ無効化API（`/api/invalidate`）は常に 401 エラーを返します。
 
-[ADMIN_KEY の設定](https://github.com/shimabox/shimabox-blog-demo/blob/main/README.md#admin_key-%E3%81%AE%E8%A8%AD%E5%AE%9A "ADMIN_KEY の設定") を参考にしてください。
+[ADMIN_KEY の設定](https://github.com/shimabox/shimabox-blog-demo?tab=readme-ov-file#admin_key-%E3%81%AE%E8%A8%AD%E5%AE%9A "ADMIN_KEY の設定") を参考にしてください。
 
 #### デプロイコマンド
 
