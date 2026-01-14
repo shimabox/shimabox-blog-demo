@@ -23,6 +23,12 @@ const PER_PAGE = 10;
 // 画像配信（/images/...）
 app.get("/images/:path{.+}", async (c) => {
   const path = c.req.param("path");
+
+  // パストラバーサルを防止
+  if (path.includes("..") || path.startsWith("/")) {
+    return c.text("Bad Request", 400);
+  }
+
   const key = `images/${path}`;
 
   const object = await c.env.BUCKET.get(key);
@@ -40,6 +46,11 @@ app.get("/images/:path{.+}", async (c) => {
 app.get("/ogp/:slug", async (c) => {
   // Honoがデコードして渡してくる
   const slug = c.req.param("slug").replace(/\.png$/, "");
+
+  // パストラバーサルを防止
+  if (slug.includes("..") || slug.startsWith("/")) {
+    return c.text("Bad Request", 400);
+  }
 
   // デフォルトOGP
   if (slug === "default") {
@@ -204,9 +215,12 @@ app.get("/favicon.ico", async (c) => {
 // POST /api/invalidate?slug=xx → 特定記事のキャッシュ削除
 app.post("/api/invalidate", async (c) => {
   const key = c.req.header("X-Admin-Key");
-  if (c.env.ADMIN_KEY && key !== c.env.ADMIN_KEY) {
+
+  // ADMIN_KEYが設定されていない、または提供されたキーが一致しない場合は拒否
+  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
     return c.text("Unauthorized", 401);
   }
+
   const slug = c.req.query("slug");
   await invalidateCache(c.env, slug);
   return c.json({ ok: true, slug: slug || "all" });
