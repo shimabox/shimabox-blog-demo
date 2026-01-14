@@ -157,6 +157,14 @@ npm run dev
 
 ### 9. 初回デプロイ
 
+> [!WARNING]
+> デプロイ前に、Cloudflare側に環境変数 `ADMIN_KEY` を設定してください。
+> `ADMIN_KEY` が未設定の場合、キャッシュ無効化API（`/api/invalidate`）は常に 401 エラーを返します。
+
+[ADMIN_KEY の設定](https://github.com/shimabox/shimabox-blog-demo/blob/main/README.md#admin_key-%E3%81%AE%E8%A8%AD%E5%AE%9A "ADMIN_KEY の設定") を参考にしてください。
+
+#### デプロイコマンド
+
 ```bash
 # OGP画像生成
 npm run generate-ogp
@@ -291,14 +299,11 @@ https://dash.cloudflare.com/xxxxxxxxxxxxxxxxxxxxxxx/workers-and-pages
 
 ### ADMIN_KEY の設定
 
-`ADMIN_KEY` はキャッシュ無効化APIを保護するための秘密鍵です。自分で任意の文字列を生成して設定してください。
+`ADMIN_KEY` はキャッシュ無効化APIを保護するための秘密鍵です。ランダムな文字列（英数字32文字以上を推奨）を生成して設定してください。
 
-```bash
-# 例: ランダムな文字列を生成
-openssl rand -hex 32
-```
-
-生成した値を GitHub Secrets と Cloudflare Dashboard の環境変数の両方に設定します。
+> [!WARNING]
+> `ADMIN_KEY` が未設定の場合、キャッシュ無効化API（`/api/invalidate`）は常に 401 エラーを返します。  
+> `ADMIN_KEY` は Cloudflare と GitHub Secrets の両方に**同じ値**を設定してください。値が一致しないとキャッシュ無効化が失敗します。
 
 **Cloudflare Dashboard での設定方法**
 
@@ -307,7 +312,22 @@ openssl rand -hex 32
 3. 「Add」ボタンをクリック
 4. Variable name に `ADMIN_KEY`、Value に生成した値を入力
 5. Type を「Secret」に変更（値が隠されます）
-6. 「Deploy」ボタンで保存
+6. 「Save」ボタンで保存
+
+**設定イメージ**
+
+① Addをクリック
+![secrets-set-adminkey-1](https://github.com/shimabox/assets/raw/master/shimabox-blog-demo/secrets-set-adminkey-1.png)
+
+② ランダムな値（英数字32文字以上を推奨）を入力
+![secrets-set-adminkey-2](https://github.com/shimabox/assets/raw/master/shimabox-blog-demo/secrets-set-adminkey-2.png)
+
+以下のコマンドで生成できます。
+
+```bash
+# macOS / Linux
+openssl rand -base64 32
+```
 
 ### SITE_URL の設定
 
