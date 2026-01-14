@@ -656,6 +656,16 @@ tr:hover {
   margin-bottom: 1rem;
 }
 
+.embed-youtube {
+  max-width: 560px;
+}
+
+.embed-youtube iframe {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+}
+
 /* Share Buttons */
 .share-buttons {
   display: flex;
