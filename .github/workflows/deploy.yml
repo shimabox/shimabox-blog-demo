@@ -188,7 +188,9 @@ jobs:
           elif [ -n "$SYNCED_SLUGS" ]; then
             for slug in $SYNCED_SLUGS; do
               echo "Invalidating cache for: $slug"
-              curl -X POST "${{ secrets.SITE_URL }}/api/invalidate?slug=$slug" \
+              # 日本語slugをURLエンコード
+              ENCODED_SLUG=$(printf '%s' "$slug" | jq -sRr @uri)
+              curl -X POST "${{ secrets.SITE_URL }}/api/invalidate?slug=$ENCODED_SLUG" \
                 -H "X-Admin-Key: ${{ secrets.ADMIN_KEY }}" \
                 --fail-with-body || echo "Cache invalidation failed for $slug"
             done
