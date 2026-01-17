@@ -14,6 +14,8 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
   const day = String(date.getDate()).padStart(2, "0");
 
   const postUrl = `${env.SITE_URL}/${year}/${month}/${day}/${post.slug}/`;
+  // X用: 日本語slugをエンコードしてリンクとして認識されるようにする
+  const postUrlForX = `${env.SITE_URL}/${year}/${month}/${day}/${encodeURIComponent(post.slug)}/`;
   const hatenaBookmarkUrl = `//b.hatena.ne.jp/entry/image/${encodeURI(postUrl)}`;
 
   return (
@@ -63,7 +65,7 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
             <span class="share-text">📢 よろしければシェアお願いします</span>
             <div class="share-buttons-list">
               <a
-                href={`https://x.com/intent/tweet?url=${encodeURIComponent(postUrl)}&text=${encodeURIComponent(post.title)}`}
+                href={`https://x.com/intent/tweet?url=${encodeURIComponent(postUrlForX)}&text=${encodeURIComponent(post.title)}`}
                 class="share-button share-x"
                 target="_blank"
                 rel="noopener noreferrer"
