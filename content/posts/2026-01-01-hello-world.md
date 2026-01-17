@@ -135,6 +135,8 @@ LiveReloadに対応しているので、ファイルを保存すると自動的�
   - https://x.com/shimabox/status/2010330057252991223
 - **YouTube**: `https://www.youtube.com/watch?v=xxx`
   - https://youtu.be/8AkTa5QjssU?si=QR-JXyqBKHNMOI4k
+- **Amazon**: `https://www.amazon.co.jp/dp/ASIN` または `amzn.asia/xxx`, `amzn.to/xxx`
+  - [Clean Architecture 達人に学ぶソフトウェアの構造と設計 | Robert C.Martin, 角 征典, 高木 正弘 |本 | 通販 | Amazon](https://www.amazon.co.jp/dp/4048930656 "Clean Architecture 達人に学ぶソフトウェアの構造と設計 | Robert C.Martin, 角 征典, 高木 正弘 |本 | 通販 | Amazon")
 - **GitHub**: `https://github.com/shimabox/shimabox-blog-demo`
   - https://github.com/shimabox/shimabox-blog-demo
 - **Gist**: `https://gist.github.com/user/gist_id`

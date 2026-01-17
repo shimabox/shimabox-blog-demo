@@ -340,6 +340,43 @@ function convertEmbeds(html: string): string {
     },
   );
 
+  // Amazon リンクをカードに変換（商品名を表示）
+  // https://www.amazon.co.jp/dp/ASIN または https://www.amazon.co.jp/gp/product/ASIN
+  // https://amzn.asia/d/xxx または https://amzn.to/xxx（短縮URL）
+  const amazonCardHtml = (
+    url: string,
+    linkText: string,
+  ) => `<div class="embed-card embed-amazon">
+        <a href="${url}" target="_blank" rel="noopener noreferrer">
+          <img src="https://icons.duckduckgo.com/ip3/www.amazon.co.jp.ico" alt="" class="amazon-icon" referrerpolicy="no-referrer">
+          <span class="amazon-card-title">${linkText}</span>
+        </a>
+      </div>`;
+
+  // 通常のAmazon URL
+  html = html.replace(
+    /<p><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a><\/p>/g,
+    (_, url, __, ___, ____, linkText) => amazonCardHtml(url, linkText),
+  );
+
+  // 短縮URL（amzn.asia, amzn.to）
+  html = html.replace(
+    /<p><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a><\/p>/g,
+    (_, url, __, linkText) => amazonCardHtml(url, linkText),
+  );
+
+  // リスト内のAmazon埋め込み（通常URL）
+  html = html.replace(
+    /<li><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a>/g,
+    (_, url, __, ___, ____, linkText) => `<li>${amazonCardHtml(url, linkText)}`,
+  );
+
+  // リスト内のAmazon埋め込み（短縮URL）
+  html = html.replace(
+    /<li><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a>/g,
+    (_, url, __, linkText) => `<li>${amazonCardHtml(url, linkText)}`,
+  );
+
   // リスト内のX/Twitter埋め込み（リンクのみを置換）
   html = html.replace(
     /<li><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a>/g,
