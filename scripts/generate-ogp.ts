@@ -33,6 +33,8 @@ interface PostMeta {
   slug: string;
   date: string;
   categories: string[];
+  image?: string;
+  ogpBg?: boolean;
 }
 
 function parseFrontmatter(content: string): PostMeta {
@@ -65,6 +67,8 @@ function parseFrontmatter(content: string): PostMeta {
     slug: data.slug || "",
     date: data.date || "",
     categories,
+    image: data.image,
+    ogpBg: data.ogp_bg !== "false",
   };
 }
 
@@ -72,9 +76,11 @@ async function generateOgpImage(
   post: PostMeta,
   fontData: Buffer,
   avatarDataUri: string | null,
+  bgImageDataUri?: string,
 ): Promise<Buffer> {
   const isDefault = post.slug === "default";
   const hasCategories = post.categories.length > 0;
+  const hasBgImage = !!bgImageDataUri;
 
   const svg = await satori(
     {
@@ -87,12 +93,52 @@ async function generateOgpImage(
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          background:
-            "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
           padding: "60px",
           fontFamily: "Noto Sans JP",
+          position: "relative",
+          ...(hasBgImage
+            ? {}
+            : {
+                background:
+                  "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+              }),
         },
         children: [
+          // 背景画像（ある場合）
+          ...(hasBgImage
+            ? [
+                {
+                  type: "img",
+                  props: {
+                    src: bgImageDataUri,
+                    width: 1200,
+                    height: 630,
+                    style: {
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "1200px",
+                      height: "630px",
+                      objectFit: "cover",
+                    },
+                  },
+                },
+                // 暗いオーバーレイ
+                {
+                  type: "div",
+                  props: {
+                    style: {
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "1200px",
+                      height: "630px",
+                      background: "rgba(0, 0, 0, 0.6)",
+                    },
+                  },
+                },
+              ]
+            : []),
           {
             type: "div",
             props: {
@@ -104,6 +150,7 @@ async function generateOgpImage(
                 lineHeight: 1.4,
                 maxWidth: "1000px",
                 wordBreak: "break-word",
+                position: "relative",
               },
               children: post.title,
             },
@@ -115,6 +162,7 @@ async function generateOgpImage(
                 marginTop: "30px",
                 fontSize: "24px",
                 color: "rgba(255,255,255,0.7)",
+                position: "relative",
               },
               children: post.date,
             },
@@ -132,6 +180,7 @@ async function generateOgpImage(
                       justifyContent: "center",
                       gap: "10px",
                       maxWidth: "1000px",
+                      position: "relative",
                     },
                     children: post.categories.map((category) => ({
                       type: "span",
@@ -304,7 +353,36 @@ async function main() {
     }
 
     try {
-      const png = await generateOgpImage(post, fontData, avatarDataUri);
+      // frontmatter に image がある場合は背景画像として読み込み（ogp_bg: false で無効化）
+      let bgImageDataUri: string | undefined;
+      if (post.ogpBg && post.image) {
+        // パスが / で始まる場合は content を追加
+        const imagePath = post.image.startsWith("/")
+          ? `./content${post.image}`
+          : post.image;
+
+        if (existsSync(imagePath)) {
+          const imageData = readFileSync(imagePath);
+          // 拡張子から MIME タイプを判定
+          const ext = imagePath.split(".").pop()?.toLowerCase();
+          const mimeType =
+            ext === "png"
+              ? "image/png"
+              : ext === "jpg" || ext === "jpeg"
+                ? "image/jpeg"
+                : ext === "gif"
+                  ? "image/gif"
+                  : "image/png";
+          bgImageDataUri = `data:${mimeType};base64,${imageData.toString("base64")}`;
+        }
+      }
+
+      const png = await generateOgpImage(
+        post,
+        fontData,
+        avatarDataUri,
+        bgImageDataUri,
+      );
       writeFileSync(outputPath, png);
       console.log(`✅ ${filename}`);
       generated++;
