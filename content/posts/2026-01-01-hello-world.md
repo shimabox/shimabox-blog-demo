@@ -133,12 +133,11 @@ LiveReloadに対応しているので、ファイルを保存すると自動的�
 
 - **X (Twitter)**: `https://x.com/user/status/123`
   - https://x.com/shimabox/status/2010330057252991223
-
-**YouTube**: `https://www.youtube.com/watch?v=xxx`
-
-https://youtu.be/8AkTa5QjssU?si=QR-JXyqBKHNMOI4k
-
-**Gist**: `https://gist.github.com/user/gist_id`
+- **YouTube**: `https://www.youtube.com/watch?v=xxx`
+  - https://youtu.be/8AkTa5QjssU?si=QR-JXyqBKHNMOI4k
+- **GitHub**: `https://github.com/shimabox/shimabox-blog-demo`
+  - https://github.com/shimabox/shimabox-blog-demo
+- **Gist**: `https://gist.github.com/user/gist_id`
 
 https://gist.github.com/shimabox/c781054a4d4c2ae14fd3413da47a46db
 

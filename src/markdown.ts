@@ -2,6 +2,37 @@ import { marked } from "marked";
 import * as emoji from "node-emoji";
 import type { Post, PostMeta } from "./types";
 
+interface GitHubRepoInfo {
+  description: string | null;
+  stargazers_count: number;
+  language: string | null;
+}
+
+/**
+ * GitHub APIからリポジトリ情報を取得
+ */
+async function fetchGitHubRepoInfo(
+  owner: string,
+  repo: string,
+): Promise<GitHubRepoInfo | null> {
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      {
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          // TODO: User-Agentはあなたのサイト名に変更してください
+          "User-Agent": "shimabox-blog-demo",
+        },
+      },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as GitHubRepoInfo;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * シンプルなfrontmatterパーサー
  */
@@ -345,6 +376,114 @@ function convertEmbeds(html: string): string {
   return html;
 }
 
+/**
+ * GitHubカードのHTMLを生成
+ */
+function generateGitHubCard(
+  url: string,
+  username: string,
+  repo: string,
+  info: GitHubRepoInfo | null,
+  prefix = "",
+): string {
+  const description = info?.description
+    ? `<p class="github-card-description">${escapeHtml(info.description)}</p>`
+    : "";
+  const meta =
+    info?.stargazers_count || info?.language
+      ? `<div class="github-card-meta">
+          ${info.language ? `<span class="github-card-language">${info.language}</span>` : ""}
+          ${info.stargazers_count ? `<span class="github-card-stars">★ ${info.stargazers_count.toLocaleString()}</span>` : ""}
+        </div>`
+      : "";
+
+  return `${prefix}<div class="embed-card embed-github">
+    <a href="${url}" target="_blank" rel="noopener noreferrer">
+      <div class="github-card-header">
+        <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        <span class="github-card-repo">${username}/${repo}</span>
+      </div>
+      ${description}
+      ${meta}
+    </a>
+  </div>`;
+}
+
+/**
+ * GitHub埋め込みを非同期で処理
+ */
+async function convertGitHubEmbeds(html: string): Promise<string> {
+  // GitHub URLを抽出
+  const patterns = [
+    // <p><a href="...">...</a></p>
+    {
+      regex:
+        /<p><a href="(https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+))\/?[^"]*">[^<]*<\/a><\/p>/g,
+      prefix: "",
+    },
+    // <p>URL</p>
+    {
+      regex:
+        /<p>(https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+))\/?<\/p>/g,
+      prefix: "",
+    },
+    // <li><a href="...">...</a>
+    {
+      regex:
+        /<li><a href="(https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+))\/?[^"]*">[^<]*<\/a>/g,
+      prefix: "<li>",
+    },
+  ];
+
+  // 全てのマッチを収集
+  const matches: Array<{
+    full: string;
+    url: string;
+    owner: string;
+    repo: string;
+    prefix: string;
+  }> = [];
+
+  for (const { regex, prefix } of patterns) {
+    let match: RegExpExecArray | null;
+    // biome-ignore lint/suspicious/noAssignInExpressions: 正規表現のマッチを収集
+    while ((match = regex.exec(html)) !== null) {
+      matches.push({
+        full: match[0],
+        url: match[1],
+        owner: match[2],
+        repo: match[3],
+        prefix,
+      });
+    }
+  }
+
+  if (matches.length === 0) return html;
+
+  // 重複を除去してAPI呼び出し
+  const uniqueRepos = [...new Set(matches.map((m) => `${m.owner}/${m.repo}`))];
+  const repoInfoMap = new Map<string, GitHubRepoInfo | null>();
+
+  await Promise.all(
+    uniqueRepos.map(async (key) => {
+      const [owner, repo] = key.split("/");
+      const info = await fetchGitHubRepoInfo(owner, repo);
+      repoInfoMap.set(key, info);
+    }),
+  );
+
+  // 置換
+  for (const { full, url, owner, repo, prefix } of matches) {
+    const info = repoInfoMap.get(`${owner}/${repo}`) ?? null;
+    const card = generateGitHubCard(url, owner, repo, info, prefix);
+    html = html.replace(full, card);
+  }
+
+  return html;
+}
+
 export async function parseMarkdown(raw: string): Promise<Post> {
   const { data, content } = parseFrontmatterRaw(raw);
 
@@ -384,6 +523,9 @@ export async function parseMarkdown(raw: string): Promise<Post> {
 
   // 埋め込みカードに変換
   bodyHtml = convertEmbeds(bodyHtml);
+
+  // GitHub埋め込みを変換（API呼び出しあり）
+  bodyHtml = await convertGitHubEmbeds(bodyHtml);
 
   // 目次を生成（見出しが3つ以上ある場合のみ、fixedPage: true で無効化）
   const isFixedPage = data.fixedPage === true;
