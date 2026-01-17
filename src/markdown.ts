@@ -594,6 +594,7 @@ export async function parseMarkdown(raw: string): Promise<Post> {
     fixedPage: isFixedPage,
     noAds: data.noAds === true,
     content: html,
+    rawContent: content,
   };
 }
 

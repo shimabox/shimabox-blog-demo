@@ -100,7 +100,55 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
               >
                 <span class="curaq-icon">CuraQ</span>
               </a>
+              <button
+                type="button"
+                class="share-button copy-markdown-button"
+                aria-label="記事のマークダウンをコピー"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  role="img"
+                  aria-label="Copy"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>記事のマークダウンをコピー</span>
+              </button>
             </div>
+            <script
+              type="text/plain"
+              id="raw-markdown"
+              dangerouslySetInnerHTML={{ __html: post.rawContent }}
+            />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  (function() {
+                    var btn = document.querySelector('.copy-markdown-button');
+                    if (!btn) return;
+                    btn.addEventListener('click', async function() {
+                      try {
+                        var el = document.getElementById('raw-markdown');
+                        if (!el) throw new Error('Not found');
+                        await navigator.clipboard.writeText(el.textContent);
+                        this.classList.add('copied');
+                        setTimeout(function() { btn.classList.remove('copied'); }, 2000);
+                      } catch (e) {
+                        alert('コピーに失敗しました');
+                      }
+                    });
+                  })();
+                `,
+              }}
+            />
           </div>
         )}
       </article>
