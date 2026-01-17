@@ -32,7 +32,7 @@ http://localhost:8787 でアクセスできます。
 
 ファイルを編集・保存すると自動でリロードされます（LiveReload対応）。
 
-https://github.com/user-attachments/assets/1ccf3cb1-0f64-45a8-9291-665b16100dde
+https://github.com/user-attachments/assets/388c889e-ed50-4e47-8e79-65fe77b90dca
 
 ## ドキュメント
 
