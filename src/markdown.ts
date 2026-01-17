@@ -309,6 +309,39 @@ function convertEmbeds(html: string): string {
     },
   );
 
+  // リスト内のX/Twitter埋め込み（リンクのみを置換）
+  html = html.replace(
+    /<li><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a>/g,
+    (_, _url, _domain, username, tweetId) => {
+      const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
+      return `<li><div class="embed-card embed-twitter">
+        <blockquote class="twitter-tweet" data-dnt="true">
+          <a href="${twitterUrl}"></a>
+        </blockquote>
+      </div>`;
+    },
+  );
+
+  // リスト内のYouTube埋め込み（youtube.com/watch?v=）
+  html = html.replace(
+    /<li><a href="(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
+    (_, __, ___, videoId) => {
+      return `<li><div class="embed-card embed-youtube">
+        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`;
+    },
+  );
+
+  // リスト内のYouTube埋め込み（youtu.be/）
+  html = html.replace(
+    /<li><a href="(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
+    (_, __, videoId) => {
+      return `<li><div class="embed-card embed-youtube">
+        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`;
+    },
+  );
+
   return html;
 }
 

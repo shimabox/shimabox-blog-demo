@@ -131,9 +131,8 @@ LiveReloadに対応しているので、ファイルを保存すると自動的�
 
 記事内のURLを自動的に埋め込みカードに変換します。
 
-**X (Twitter)**: `https://x.com/user/status/123`
-
-https://x.com/shimabox/status/2010330057252991223
+- **X (Twitter)**: `https://x.com/user/status/123`
+  - https://x.com/shimabox/status/2010330057252991223
 
 **YouTube**: `https://www.youtube.com/watch?v=xxx`
 
