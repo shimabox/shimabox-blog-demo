@@ -667,6 +667,66 @@ tr:hover {
   border: none;
 }
 
+.embed-github {
+  max-width: 560px;
+}
+
+.embed-github a {
+  display: block;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.embed-github a:hover {
+  border-color: var(--text-secondary);
+}
+
+.github-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.github-card-header svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.github-card-repo {
+  font-weight: 600;
+  color: var(--link-color);
+}
+
+.github-card-description {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.github-card-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.github-card-language {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.github-card-stars {
+  color: var(--text-secondary);
+}
+
 /* Share Buttons */
 .share-buttons {
   display: flex;
