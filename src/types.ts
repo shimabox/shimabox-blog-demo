@@ -12,6 +12,7 @@ export interface PostMeta {
 
 export interface Post extends PostMeta {
   content: string;
+  rawContent: string;
 }
 
 export type Env = {
