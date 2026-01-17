@@ -163,6 +163,7 @@ npm run deploy
 | `npm run deploy` | Cloudflare Pagesにデプロイ |
 | `npm run sync` | コンテンツをR2に同期 |
 | `npm run sync -- slug` | 特定記事のみR2に同期 |
+| `npm run sync:delete` | コンテンツ同期 + R2から削除されたファイルを削除 |
 | `npm run generate-ogp` | OGP画像を生成 |
 | `npm run generate-ogp -- slug --force` | 特定記事のOGPを上書き生成 |
 | `npm run generate-ogp:force` | 全OGPを上書き生成 |
@@ -271,8 +272,8 @@ mainブランチへのpushで自動デプロイが実行されます。手動実
 
 | deploy_type | 説明 |
 |-------------|------|
-| `diff` | 変更されたファイルのみ同期（デフォルト） |
-| `full` | 全ファイルを同期 |
+| `diff` | 変更されたファイルのみ同期 + 削除されたファイルをR2から削除（デフォルト） |
+| `full` | 全ファイルを同期 + R2から削除されたファイルを削除 |
 | `slug` | 指定したslugのみ同期（slug入力必要） |
 | `deploy` | 同期なしでデプロイのみ |
 
@@ -428,6 +429,16 @@ npm run sync -- slug-name
 npm run generate-ogp -- slug-name --force
 npm run sync -- slug-name
 ```
+
+### ローカルで削除した記事や画像がR2に残っている
+
+```bash
+npm run sync:delete
+```
+
+> [!NOTE]
+> mainブランチへのpush時は、CIで自動的に削除されたファイルがR2から削除されます。
+> 手動で即座に削除したい場合に上記コマンドを使用してください。
 
 ### 本番で更新が反映されない
 
