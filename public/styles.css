@@ -208,8 +208,9 @@ article img {
 }
 
 .post-tags {
-  display: flex;
-  flex-wrap: nowrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   gap: 0.5rem;
   overflow-x: auto;
   padding-bottom: 1rem;
@@ -683,7 +684,9 @@ tr:hover {
 }
 
 .share-buttons-list {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   gap: 0.5rem;
 }
 
