@@ -156,7 +156,10 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
         {post.fixedPage ? (
           <a href="/">← TOPに戻る</a>
         ) : (
-          <a href="/" onclick="history.back(); return false;">
+          <a
+            href="/"
+            onclick="document.referrer.includes(location.host) ? history.back() : location.href = '/'; return false;"
+          >
             ← 記事一覧に戻る
           </a>
         )}
