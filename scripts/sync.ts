@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 // TODO: wrangler.toml の bucket_name と同じ値に変更してください
-const BUCKET = "shimabox-blog-demo";
+const BUCKET = "your-blog-content";
 const CONTENT_DIR = "./content";
 
 // TODO: wrangler.toml の SITE_URL と同じ値に変更してください
