@@ -2,8 +2,10 @@
  * OGP画像を生成するスクリプト
  *
  * 使い方:
- *   npm run generate-ogp          # 全記事のOGP生成
- *   npm run generate-ogp -- slug  # 特定記事のみ
+ *   npm run generate-ogp                  # 未生成のOGP生成
+ *   npm run generate-ogp -- slug          # 特定記事のみ（未生成時）
+ *   npm run generate-ogp -- slug --force  # 特定記事を上書き生成
+ *   npm run generate-ogp:force            # 全OGPを上書き生成
  */
 
 import {
