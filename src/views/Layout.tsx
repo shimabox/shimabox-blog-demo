@@ -107,7 +107,7 @@ export const Layout: FC<LayoutProps> = ({ title, post, env, children }) => {
             </nav>
           </div>
         </header>
-        <main class="container">{children}</main>
+        <main class={`container${post ? " post-detail" : ""}`}>{children}</main>
         <footer>
           <div class="container">
             <a href="/about/">About</a>
