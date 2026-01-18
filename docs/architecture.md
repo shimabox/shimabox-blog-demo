@@ -78,6 +78,30 @@ Hono + Cloudflare Pages + R2 で構築した個人ブログシステム。
 2. GitHub にプッシュ
 3. GitHub Actions が R2 に同期 → キャッシュ無効化 → プリウォーム
 
+### 記事・画像の削除
+
+**CIでの自動削除フロー**
+
+1. ローカルで記事/画像を削除
+2. git commit & push to main
+3. GitHub Actions が `git diff --diff-filter=D` で削除を検出
+4. R2 から該当ファイルを削除
+5. 削除された記事のキャッシュを無効化
+
+**手動での削除同期**
+
+CIを待たずに即座にR2から削除したい場合:
+
+```bash
+npm run sync:delete
+```
+
+このコマンドは、ローカルの `content/` とR2を比較し、R2にあってローカルにないファイルを削除します。
+
+**workflow_dispatch での full sync**
+
+GitHub Actions の手動実行で `deploy_type: full` を選択した場合も、R2から不要なファイルが削除されます。
+
 ### 記事の表示
 
 1. ユーザーがページにアクセス
