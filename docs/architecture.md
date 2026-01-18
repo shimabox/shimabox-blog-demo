@@ -78,52 +78,6 @@ Hono + Cloudflare Pages + R2 で構築した個人ブログシステム。
 2. GitHub にプッシュ
 3. GitHub Actions が R2 に同期 → キャッシュ無効化 → プリウォーム
 
-### 記事・画像の削除
-
-ローカルで記事や画像を削除してmainにpushすると、CIが自動的にR2からも削除します。
-
-**CIでの自動削除フロー**
-
-```
-1. ローカルで記事/画像を削除
-2. git commit & push to main
-3. GitHub Actions が起動
-4. git diff --diff-filter=D で削除されたファイルを検出
-5. wrangler r2 object delete でR2から削除
-6. 削除された記事のキャッシュを無効化
-```
-
-**削除の検出方法**
-
-CIでは以下のコマンドで削除されたファイルを検出します:
-
-```bash
-# 削除されたファイルのみを検出
-git diff --diff-filter=D --name-only HEAD~1 HEAD -- 'content/posts/*.md' 'content/pages/*.md' 'content/images/**'
-```
-
-検出されたファイルパスは `content/` プレフィックスを除去してR2のキーに変換されます:
-- `content/posts/2024-01-01-example.md` → `posts/2024-01-01-example.md`
-- `content/images/ogp/example.png` → `images/ogp/example.png`
-
-**手動での削除同期**
-
-CIを待たずに即座にR2から削除したい場合:
-
-```bash
-npm run sync:delete
-```
-
-このコマンドは:
-1. ローカルの `content/` 配下のファイル一覧を取得
-2. R2のオブジェクト一覧を取得
-3. R2にあってローカルにないファイルを削除
-
-**workflow_dispatch での full sync**
-
-GitHub Actions の手動実行で `deploy_type: full` を選択した場合も、
-`npm run sync:delete` が実行され、R2から不要なファイルが削除されます。
-
 ### 記事の表示
 
 1. ユーザーがページにアクセス
