@@ -34,8 +34,15 @@ const targetSlug = args.find((arg) => !arg.startsWith("-"));
 // シェルインジェクション対策: 危険な文字を含むパスをチェック
 const DANGEROUS_CHARS = /[;|$`&<>(){}\\]/;
 
+// 同期対象外のファイル
+const IGNORE_FILES = [".DS_Store", "Thumbs.db", ".gitkeep"];
+
 function hasDangerousChars(path: string): boolean {
   return DANGEROUS_CHARS.test(path);
+}
+
+function shouldIgnore(filename: string): boolean {
+  return IGNORE_FILES.includes(filename);
 }
 
 function formatTime(ms: number): string {
@@ -49,6 +56,12 @@ function formatTime(ms: number): string {
 }
 
 function syncFile(localPath: string, remotePath: string): boolean {
+  // 除外ファイルをスキップ
+  const filename = remotePath.split("/").pop() || "";
+  if (shouldIgnore(filename)) {
+    return false;
+  }
+
   // シェルインジェクション対策
   if (hasDangerousChars(localPath) || hasDangerousChars(remotePath)) {
     console.error(`⚠️  Skipping file with dangerous characters: ${remotePath}`);
@@ -225,6 +238,11 @@ function collectImagesRecursive(
   files: Set<string>,
 ) {
   for (const file of readdirSync(dir)) {
+    // 除外ファイルをスキップ
+    if (shouldIgnore(file)) {
+      continue;
+    }
+
     const fullPath = join(dir, file);
     const remotePath = `${prefix}/${file}`;
 
