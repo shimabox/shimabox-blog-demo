@@ -163,6 +163,7 @@ npm run deploy
 | `npm run deploy` | Cloudflare Pagesにデプロイ |
 | `npm run sync` | コンテンツをR2に同期 |
 | `npm run sync -- slug` | 特定記事のみR2に同期 |
+| `npm run sync:delete` | 全コンテンツ同期 + R2から削除されたファイルを削除 |
 | `npm run generate-ogp` | OGP画像を生成 |
 | `npm run generate-ogp -- slug --force` | 特定記事のOGPを上書き生成 |
 | `npm run generate-ogp:force` | 全OGPを上書き生成 |
@@ -271,10 +272,14 @@ mainブランチへのpushで自動デプロイが実行されます。手動実
 
 | deploy_type | 説明 |
 |-------------|------|
-| `diff` | 変更されたファイルのみ同期（デフォルト） |
-| `full` | 全ファイルを同期 |
+| `diff` | 変更されたファイルのみ同期（デフォルト）。削除されたファイルも自動検出してR2から削除 |
+| `full` | 全ファイルを同期 + R2のorphaned filesを削除 |
 | `slug` | 指定したslugのみ同期（slug入力必要） |
 | `deploy` | 同期なしでデプロイのみ |
+
+> [!NOTE]
+> mainブランチへのpush時、`git diff`で削除されたファイルを検出し、R2から自動削除します。
+> 削除された記事のキャッシュも自動的にクリアされます。
 
 ### 必要なSecrets
 
@@ -428,6 +433,15 @@ npm run sync -- slug-name
 npm run generate-ogp -- slug-name --force
 npm run sync -- slug-name
 ```
+
+### 削除した記事・画像がR2に残っている
+
+```bash
+npm run sync:delete
+```
+
+> [!NOTE]
+> mainブランチへのpush時は、CIで自動的に削除されたファイルがR2から削除されます。
 
 ### 本番で更新が反映されない
 
