@@ -9,7 +9,6 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "sync": "tsx scripts/sync.ts",
-    "sync:delete": "tsx scripts/sync.ts --delete",
     "generate-ogp": "tsx scripts/generate-ogp.ts",
     "generate-ogp:force": "tsx scripts/generate-ogp.ts --force",
     "log:prod": "npx wrangler tail"
