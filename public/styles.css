@@ -384,7 +384,7 @@ footer {
   background: var(--bg-header);
   color: rgba(255, 255, 255, 0.7);
   padding: 2rem 0;
-  margin-top: 3rem;
+  margin-top: 2rem;
   text-align: center;
   font-size: 0.875rem;
 }
@@ -419,6 +419,17 @@ footer a {
 
   .post-list li {
     padding: 1rem;
+  }
+
+  /* 記事詳細ページ */
+  .post-detail {
+    padding: 0;
+    margin-top: -2rem;
+  }
+
+  .post-detail article {
+    border-radius: 0;
+    margin-bottom: 0;
   }
 }
 
