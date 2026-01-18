@@ -451,6 +451,16 @@ npm run sync:delete
 > [!NOTE]
 > mainブランチへのpush時は、CIで自動的に削除されたファイルがR2から削除されます。
 
+> [!WARNING]
+> **既知の問題**: `npm run sync:delete`（`--delete`オプション）によるR2孤立ファイルの自動削除機能は現在動作しません。
+> `wrangler r2 object list` コマンドが存在しないため、R2オブジェクト一覧を取得できません。
+>
+> **回避策**:
+> - diffデプロイ（git diffによる削除検出）は正常に動作します
+> - 手動でCloudflareダッシュボードからR2の不要ファイルを削除してください
+>
+> **TODO**: `@aws-sdk/client-s3` を使用したS3互換APIでの実装に修正予定
+
 ### 本番で更新が反映されない
 
 キャッシュを無効化:
