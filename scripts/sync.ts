@@ -2,8 +2,10 @@
  * コンテンツをR2に同期するスクリプト（本番専用）
  *
  * 使い方:
- *   npm run sync               # 本番R2に全て同期
- *   npm run sync -- slug-name  # 本番R2に指定slugのみ同期
+ *   npm run sync                                 # 本番R2に全て同期
+ *   npm run sync -- slug-name                    # 本番R2に指定slugのみ同期
+ *   npm run sync -- --delete                     # 本番R2に全て同期 + R2から削除されたファイルを削除
+ *   npm run sync -- --delete-paths path1 path2  # 本番R2から指定パスを削除
  */
 
 import { execSync } from "node:child_process";
@@ -14,10 +16,12 @@ import { join } from "node:path";
 const BUCKET = "shimabox-blog-demo";
 const CONTENT_DIR = "./content";
 
-const targetSlug = process.argv.find(
-  (arg) =>
-    !arg.startsWith("-") && arg !== process.argv[0] && arg !== process.argv[1],
-);
+const args = process.argv.slice(2);
+const shouldDelete = args.includes("--delete");
+const deletePathsIndex = args.indexOf("--delete-paths");
+const deletePaths =
+  deletePathsIndex !== -1 ? args.slice(deletePathsIndex + 1) : [];
+const targetSlug = args.find((arg) => !arg.startsWith("-"));
 
 function formatTime(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -39,6 +43,20 @@ function syncFile(localPath: string, remotePath: string): boolean {
     return true;
   } catch {
     console.error(`❌ Failed: ${remotePath}`);
+    return false;
+  }
+}
+
+function deleteFile(remotePath: string): boolean {
+  try {
+    execSync(
+      `npx wrangler r2 object delete "${BUCKET}/${remotePath}" --remote`,
+      { stdio: "pipe" },
+    );
+    console.log(`🗑️  Deleted: ${remotePath}`);
+    return true;
+  } catch {
+    console.error(`❌ Failed to delete: ${remotePath}`);
     return false;
   }
 }
@@ -107,6 +125,121 @@ function syncImagesRecursive(dir: string, prefix: string): number {
     }
   }
   return count;
+}
+
+function listR2Objects(prefix?: string): string[] {
+  try {
+    const command = prefix
+      ? `npx wrangler r2 object list ${BUCKET} --prefix="${prefix}" --remote`
+      : `npx wrangler r2 object list ${BUCKET} --remote`;
+
+    const output = execSync(command, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    const objects: string[] = [];
+    const lines = output.split("\n");
+
+    for (const line of lines) {
+      const match = line.match(/^Key:\s+(.+)$/);
+      if (match) {
+        objects.push(match[1]);
+      }
+    }
+
+    return objects;
+  } catch {
+    console.error("Failed to list R2 objects");
+    return [];
+  }
+}
+
+function getLocalFiles(): Set<string> {
+  const files = new Set<string>();
+
+  const postsDir = join(CONTENT_DIR, "posts");
+  if (existsSync(postsDir)) {
+    for (const file of readdirSync(postsDir).filter((f) => f.endsWith(".md"))) {
+      files.add(`posts/${file}`);
+    }
+  }
+
+  const pagesDir = join(CONTENT_DIR, "pages");
+  if (existsSync(pagesDir)) {
+    for (const file of readdirSync(pagesDir).filter((f) => f.endsWith(".md"))) {
+      files.add(`pages/${file}`);
+    }
+  }
+
+  const imagesDir = join(CONTENT_DIR, "images");
+  if (existsSync(imagesDir)) {
+    collectImagesRecursive(imagesDir, "images", files);
+  }
+
+  return files;
+}
+
+function collectImagesRecursive(
+  dir: string,
+  prefix: string,
+  files: Set<string>,
+) {
+  for (const file of readdirSync(dir)) {
+    const fullPath = join(dir, file);
+    const remotePath = `${prefix}/${file}`;
+
+    if (statSync(fullPath).isDirectory()) {
+      collectImagesRecursive(fullPath, remotePath, files);
+    } else {
+      files.add(remotePath);
+    }
+  }
+}
+
+async function deleteOrphanedFiles() {
+  console.log("🔍 Checking for orphaned files in R2...\n");
+
+  const r2Objects = listR2Objects();
+  if (r2Objects.length === 0) {
+    console.log("No objects found in R2.");
+    return 0;
+  }
+
+  console.log(`Found ${r2Objects.length} objects in R2`);
+
+  const localFiles = getLocalFiles();
+  console.log(`Found ${localFiles.size} files locally\n`);
+
+  let deletedCount = 0;
+  for (const r2Path of r2Objects) {
+    if (!localFiles.has(r2Path)) {
+      console.log(`🗑️  Orphaned: ${r2Path}`);
+      if (deleteFile(r2Path)) {
+        deletedCount++;
+      }
+    }
+  }
+
+  if (deletedCount === 0) {
+    console.log("No orphaned files found.");
+  } else {
+    console.log(`\n✅ Deleted ${deletedCount} orphaned files`);
+  }
+
+  return deletedCount;
+}
+
+async function deleteSpecificPaths(paths: string[]) {
+  console.log(`🗑️ Deleting ${paths.length} files from R2...\n`);
+  let deletedCount = 0;
+  for (const path of paths) {
+    if (deleteFile(path)) {
+      deletedCount++;
+    }
+  }
+  console.log(`\n✅ Deleted ${deletedCount} files`);
+  return deletedCount;
 }
 
 async function syncBySlug(slug: string) {
@@ -206,6 +339,12 @@ async function syncBySlug(slug: string) {
 async function main() {
   const startTime = Date.now();
 
+  // --delete-paths が指定された場合は削除のみ実行
+  if (deletePaths.length > 0) {
+    await deleteSpecificPaths(deletePaths);
+    return;
+  }
+
   console.log("Syncing to R2 (production)...\n");
 
   let total: number;
@@ -214,6 +353,12 @@ async function main() {
     total = await syncBySlug(targetSlug);
   } else {
     total = await syncAll();
+  }
+
+  // --delete が指定された場合は削除処理も実行
+  if (shouldDelete) {
+    console.log("\n");
+    await deleteOrphanedFiles();
   }
 
   const totalTime = Date.now() - startTime;
