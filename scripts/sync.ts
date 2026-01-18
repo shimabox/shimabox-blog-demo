@@ -23,6 +23,13 @@ const deletePaths =
   deletePathsIndex !== -1 ? args.slice(deletePathsIndex + 1) : [];
 const targetSlug = args.find((arg) => !arg.startsWith("-"));
 
+// シェルインジェクション対策: 危険な文字を含むパスをチェック
+const DANGEROUS_CHARS = /[;|$`&<>(){}\\]/;
+
+function hasDangerousChars(path: string): boolean {
+  return DANGEROUS_CHARS.test(path);
+}
+
 function formatTime(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   const seconds = Math.floor(ms / 1000);
@@ -34,9 +41,15 @@ function formatTime(ms: number): string {
 }
 
 function syncFile(localPath: string, remotePath: string): boolean {
+  // シェルインジェクション対策
+  if (hasDangerousChars(localPath) || hasDangerousChars(remotePath)) {
+    console.error(`⚠️  Skipping file with dangerous characters: ${remotePath}`);
+    return false;
+  }
+
   try {
     execSync(
-      `npx wrangler r2 object put ${BUCKET}/${remotePath} --file="${localPath}" --remote`,
+      `npx wrangler r2 object put "${BUCKET}/${remotePath}" --file="${localPath}" --remote`,
       { stdio: "pipe" },
     );
     console.log(`✅ ${remotePath}`);
@@ -48,6 +61,12 @@ function syncFile(localPath: string, remotePath: string): boolean {
 }
 
 function deleteFile(remotePath: string): boolean {
+  // シェルインジェクション対策
+  if (hasDangerousChars(remotePath)) {
+    console.error(`⚠️  Skipping file with dangerous characters: ${remotePath}`);
+    return false;
+  }
+
   try {
     execSync(
       `npx wrangler r2 object delete "${BUCKET}/${remotePath}" --remote`,
