@@ -163,7 +163,7 @@ npm run deploy
 | `npm run deploy` | Cloudflare Pagesにデプロイ |
 | `npm run sync` | コンテンツをR2に同期 |
 | `npm run sync -- slug` | 特定記事のみR2に同期 |
-| `npm run sync:delete` | 全コンテンツ同期 + R2から削除されたファイルを削除 |
+| `npm run sync:delete` | `/content` 以下を正としてR2を同期 |
 | `npm run generate-ogp` | OGP画像を生成 |
 | `npm run generate-ogp -- slug --force` | 特定記事のOGPを上書き生成 |
 | `npm run generate-ogp:force` | 全OGPを上書き生成 |
@@ -298,7 +298,7 @@ GitHub リポジトリの Settings > Secrets and variables > Actions で以下�
 | `CLOUDFLARE_API_TOKEN` | Cloudflare API トークン |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare アカウントID |
 | `SITE_URL` | デプロイ先URL（キャッシュウォーム用） |
-| `ADMIN_KEY` | キャッシュ無効化API用キー |
+| `ADMIN_KEY` | 管理API用の認証キー（キャッシュ無効化、R2オブジェクト一覧取得） |
 
 ### API Token の作成
 
@@ -392,7 +392,12 @@ SITE_TITLE=ローカルテスト用タイトル
 ### Cloudflare Dashboard（本番用）
 
 Settings → Variables and Secrets で設定:
-- `ADMIN_KEY`: キャッシュ無効化API用の秘密鍵（Encrypt にチェック）
+- `ADMIN_KEY`: 管理API用の秘密鍵（Encrypt にチェック）
+
+> [!IMPORTANT]
+> `ADMIN_KEY` は Cloudflare と GitHub Secrets の両方に**同じ値**を設定してください。
+> - 未設定の場合: `/api/invalidate` と `/api/r2-list` は常に 401 エラーを返します
+> - 値が不一致の場合: GitHub Actions のキャッシュ無効化やfull syncが失敗します
 
 ---
 
@@ -445,21 +450,14 @@ npm run sync -- slug-name
 ### 削除した記事・画像がR2に残っている
 
 ```bash
+export SITE_URL=https://your-blog-name.pages.dev
+export ADMIN_KEY=your-admin-key
 npm run sync:delete
 ```
 
 > [!NOTE]
+> `SITE_URL`と`ADMIN_KEY`環境変数が必要です（本番APIを使用してR2オブジェクト一覧を取得するため）。
 > mainブランチへのpush時は、CIで自動的に削除されたファイルがR2から削除されます。
-
-> [!WARNING]
-> **既知の問題**: `npm run sync:delete`（`--delete`オプション）によるR2孤立ファイルの自動削除機能は現在動作しません。
-> `wrangler r2 object list` コマンドが存在しないため、R2オブジェクト一覧を取得できません。
->
-> **回避策**:
-> - diffデプロイ（git diffによる削除検出）は正常に動作します
-> - 手動でCloudflareダッシュボードからR2の不要ファイルを削除してください
->
-> **TODO**: `@aws-sdk/client-s3` を使用したS3互換APIでの実装に修正予定
 
 ### 本番で更新が反映されない
 

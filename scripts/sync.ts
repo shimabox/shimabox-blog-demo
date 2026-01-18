@@ -4,8 +4,12 @@
  * 使い方:
  *   npm run sync                                 # 本番R2に全て同期
  *   npm run sync -- slug-name                    # 本番R2に指定slugのみ同期
- *   npm run sync -- --delete                     # 本番R2に全て同期 + R2から削除されたファイルを削除
+ *   npm run sync:delete                          # `/content` 以下を正としてR2を同期（※ADMIN_KEY必須）
  *   npm run sync -- --delete-paths path1 path2  # 本番R2から指定パスを削除
+ *
+ * 環境変数:
+ *   ADMIN_KEY  - --delete時に必須（/api/r2-list認証用）
+ *   SITE_URL   - --delete時に必須（/api/r2-list認証用）
  */
 
 import { execSync } from "node:child_process";
@@ -13,8 +17,12 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 // TODO: wrangler.toml の bucket_name と同じ値に変更してください
-const BUCKET = "shimabox-blog-demo";
+const BUCKET = "your-blog-content";
 const CONTENT_DIR = "./content";
+
+// TODO: wrangler.toml の SITE_URL と同じ値に変更してください
+const SITE_URL = process.env.SITE_URL;
+const ADMIN_KEY = process.env.ADMIN_KEY;
 
 const args = process.argv.slice(2);
 const shouldDelete = args.includes("--delete");
@@ -146,30 +154,42 @@ function syncImagesRecursive(dir: string, prefix: string): number {
   return count;
 }
 
-function listR2Objects(prefix?: string): string[] {
+async function listR2Objects(prefix?: string): Promise<string[]> {
+  if (!ADMIN_KEY || !SITE_URL) {
+    console.error(
+      "❌ ADMIN_KEY and SITE_URL environment variables are required for --delete",
+    );
+    console.error("   Set them via:");
+    console.error("     export SITE_URL=https://your-blog-name.pages.dev");
+    console.error("     export ADMIN_KEY=your-admin-key");
+    return [];
+  }
+
   try {
-    const command = prefix
-      ? `npx wrangler r2 object list ${BUCKET} --prefix="${prefix}" --remote`
-      : `npx wrangler r2 object list ${BUCKET} --remote`;
-
-    const output = execSync(command, {
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    const objects: string[] = [];
-    const lines = output.split("\n");
-
-    for (const line of lines) {
-      const match = line.match(/^Key:\s+(.+)$/);
-      if (match) {
-        objects.push(match[1]);
-      }
+    const url = new URL("/api/r2-list", SITE_URL);
+    if (prefix) {
+      url.searchParams.set("prefix", prefix);
     }
 
-    return objects;
-  } catch {
-    console.error("Failed to list R2 objects");
+    const response = await fetch(url.toString(), {
+      headers: {
+        "X-Admin-Key": ADMIN_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error("❌ Unauthorized: ADMIN_KEY is invalid");
+      } else {
+        console.error(`❌ Failed to list R2 objects: ${response.status}`);
+      }
+      return [];
+    }
+
+    const data = (await response.json()) as { objects: string[] };
+    return data.objects;
+  } catch (error) {
+    console.error("Failed to list R2 objects:", error);
     return [];
   }
 }
@@ -219,7 +239,7 @@ function collectImagesRecursive(
 async function deleteOrphanedFiles() {
   console.log("🔍 Checking for orphaned files in R2...\n");
 
-  const r2Objects = listR2Objects();
+  const r2Objects = await listR2Objects();
   if (r2Objects.length === 0) {
     console.log("No objects found in R2.");
     return 0;

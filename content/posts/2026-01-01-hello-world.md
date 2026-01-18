@@ -182,6 +182,13 @@ npm run generate-ogp:force
 
 ローカルで削除してmainにpushすると、R2からも自動削除されます。
 
+手動で即座に削除したい場合
+```bash
+export SITE_URL=https://your-blog-name.pages.dev
+export ADMIN_KEY=your-admin-key
+npm run sync:delete
+```
+
 ## おわりに
 
 このブログでは、技術的なことから日常のことまで幅広く書いていく予定です。
