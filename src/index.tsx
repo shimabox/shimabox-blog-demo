@@ -226,6 +226,37 @@ app.post("/api/invalidate", async (c) => {
   return c.json({ ok: true, slug: slug || "all" });
 });
 
+// R2オブジェクト一覧API（sync:delete用）
+// GET /api/r2-list           → 全オブジェクト一覧
+// GET /api/r2-list?prefix=xx → 指定prefixのオブジェクト一覧
+app.get("/api/r2-list", async (c) => {
+  const key = c.req.header("X-Admin-Key");
+
+  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
+    return c.text("Unauthorized", 401);
+  }
+
+  const prefix = c.req.query("prefix");
+  const objects: string[] = [];
+  let cursor: string | undefined;
+
+  // R2のlist()はページネーションが必要
+  do {
+    const listed = await c.env.BUCKET.list({
+      prefix: prefix || undefined,
+      cursor,
+    });
+
+    for (const obj of listed.objects) {
+      objects.push(obj.key);
+    }
+
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  return c.json({ objects });
+});
+
 // 404
 app.notFound((c) => {
   return c.html(<NotFound env={c.env} />, 404);
