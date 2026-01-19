@@ -167,8 +167,9 @@ npm run deploy
 | `npm run generate-ogp` | OGP画像を生成 |
 | `npm run generate-ogp -- slug --force` | 特定記事のOGPを上書き生成 |
 | `npm run generate-ogp:force` | 全OGPを上書き生成 |
-| `npm run check` | Biomeでチェック |
+| `npm run check` | Biome + 型チェック |
 | `npm run check:fix` | Biomeでチェック＆自動修正 |
+| `npm run typecheck` | 型チェックのみ |
 
 ---
 

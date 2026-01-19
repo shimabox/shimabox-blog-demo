@@ -15,6 +15,7 @@ import { createServer as createLivereloadServer } from "livereload";
 
 // markdown.ts の関数を流用
 import { parseFrontmatter, parseMarkdown } from "./src/markdown";
+import type { Post, PostMeta } from "./src/types";
 
 const CONTENT_DIR = "./content";
 const PORT = 8787;
@@ -69,21 +70,6 @@ app.use("*", async (c, next) => {
     });
   }
 });
-
-// 型定義
-interface PostMeta {
-  title: string;
-  slug: string;
-  date: string;
-  categories: string[];
-  tags: string[];
-  excerpt: string;
-  image?: string;
-}
-
-interface Post extends PostMeta {
-  content: string;
-}
 
 // ファイルシステムから記事一覧を取得
 function listPosts(): PostMeta[] {
