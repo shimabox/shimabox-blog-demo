@@ -594,7 +594,8 @@ export async function parseMarkdown(raw: string): Promise<Post> {
     fixedPage: isFixedPage,
     noAds: data.noAds === true,
     content: html,
-    rawContent: content,
+    // </script>をプレースホルダーに置換してscriptタグが閉じないようにする
+    rawContent: content.replace(/<\/script/gi, "__SCRIPT_CLOSE__"),
   };
 }
 

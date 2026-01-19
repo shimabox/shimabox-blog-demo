@@ -138,7 +138,8 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
                       try {
                         var el = document.getElementById('raw-markdown');
                         if (!el) throw new Error('Not found');
-                        await navigator.clipboard.writeText(el.textContent);
+                        var text = el.textContent.replace(/__SCRIPT_CLOSE__/g, '</script');
+                        await navigator.clipboard.writeText(text);
                         this.classList.add('copied');
                         setTimeout(function() { btn.classList.remove('copied'); }, 2000);
                       } catch (e) {
