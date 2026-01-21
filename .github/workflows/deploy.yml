@@ -25,10 +25,11 @@ on:
         default: 'diff'
         type: choice
         options:
-          - diff   # 差分syncしてdeploy
-          - full   # 全件syncしてdeploy
-          - slug   # 指定slugのみsyncしてdeploy
-          - deploy # deployのみ（syncなし）
+          - diff        # 差分syncしてdeploy
+          - full        # 全件syncしてdeploy
+          - full-posts  # 記事・ページのみ全件syncしてdeploy（画像除く）
+          - slug        # 指定slugのみsyncしてdeploy
+          - deploy      # deployのみ（syncなし）
       slug:
         description: 'slug（deploy_type=slugの場合に指定）'
         required: false
@@ -296,6 +297,17 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
           ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
 
+      # 記事・ページのみ全件sync（workflow_dispatch で full-posts 選択時）
+      - name: Sync posts and pages to R2 (with delete)
+        if: github.event.inputs.deploy_type == 'full-posts'
+        run: npm run sync -- --posts-only --delete
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+
+      # 指定slug sync（workflow_dispatch で slug 選択時）
       - name: Sync specified slug to R2
         id: sync_slug
         if: github.event.inputs.deploy_type == 'slug' && github.event.inputs.slug != ''
@@ -383,8 +395,8 @@ jobs:
           DELETED_SLUGS="${{ steps.detect.outputs.deleted_slugs }}"
           ALL_SLUGS="$SYNCED_SLUGS $DELETED_SLUGS"
 
-          # full sync の場合は全キャッシュ削除
-          if [ "${{ github.event.inputs.deploy_type }}" == "full" ]; then
+          # full/full-posts sync の場合は全キャッシュ削除
+          if [ "${{ github.event.inputs.deploy_type }}" == "full" ] || [ "${{ github.event.inputs.deploy_type }}" == "full-posts" ]; then
             echo "Invalidating all cache"
             curl -X POST "${{ secrets.SITE_URL }}/api/invalidate" \
               -H "X-Admin-Key: ${{ secrets.ADMIN_KEY }}" \
