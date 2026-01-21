@@ -5,6 +5,8 @@
  *   npm run sync                                 # 本番R2に全て同期
  *   npm run sync -- slug-name                    # 本番R2に指定slugのみ同期
  *   npm run sync:delete                          # `/content` 以下を正としてR2を同期（※ADMIN_KEY必須）
+ *   npm run sync -- --posts-only                 # 記事・ページのみ同期（画像除く）
+ *   npm run sync -- --posts-only --delete        # 記事・ページのみ同期 + 削除
  *   npm run sync -- --delete-paths path1 path2  # 本番R2から指定パスを削除
  *
  * 環境変数:
@@ -26,6 +28,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY;
 
 const args = process.argv.slice(2);
 const shouldDelete = args.includes("--delete");
+const postsOnly = args.includes("--posts-only");
 const deletePathsIndex = args.indexOf("--delete-paths");
 const deletePaths =
   deletePathsIndex !== -1 ? args.slice(deletePathsIndex + 1) : [];
@@ -142,11 +145,13 @@ async function syncAll() {
     }
   }
 
-  // 画像
-  console.log("\n🖼️  Syncing images...");
-  const imagesDir = join(CONTENT_DIR, "images");
-  if (existsSync(imagesDir)) {
-    total += syncImagesRecursive(imagesDir, "images");
+  // 画像（--posts-only時はスキップ）
+  if (!postsOnly) {
+    console.log("\n🖼️  Syncing images...");
+    const imagesDir = join(CONTENT_DIR, "images");
+    if (existsSync(imagesDir)) {
+      total += syncImagesRecursive(imagesDir, "images");
+    }
   }
 
   return total;
@@ -224,9 +229,12 @@ function getLocalFiles(): Set<string> {
     }
   }
 
-  const imagesDir = join(CONTENT_DIR, "images");
-  if (existsSync(imagesDir)) {
-    collectImagesRecursive(imagesDir, "images", files);
+  // --posts-only時は画像をスキップ
+  if (!postsOnly) {
+    const imagesDir = join(CONTENT_DIR, "images");
+    if (existsSync(imagesDir)) {
+      collectImagesRecursive(imagesDir, "images", files);
+    }
   }
 
   return files;
@@ -257,7 +265,16 @@ function collectImagesRecursive(
 async function deleteOrphanedFiles() {
   console.log("🔍 Checking for orphaned files in R2...\n");
 
-  const r2Objects = await listR2Objects();
+  // --posts-only時はposts/とpages/のみ取得
+  let r2Objects: string[];
+  if (postsOnly) {
+    const posts = await listR2Objects("posts/");
+    const pages = await listR2Objects("pages/");
+    r2Objects = [...posts, ...pages];
+  } else {
+    r2Objects = await listR2Objects();
+  }
+
   if (r2Objects.length === 0) {
     console.log("No objects found in R2.");
     return 0;
