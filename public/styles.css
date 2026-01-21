@@ -668,6 +668,31 @@ tr:hover {
   margin-bottom: 1rem;
 }
 
+/* X/Twitter Loading */
+.twitter-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.twitter-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--text-link);
+  border-radius: 50%;
+  animation: twitter-spin 0.8s linear infinite;
+}
+
+@keyframes twitter-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .embed-youtube {
   max-width: 560px;
 }

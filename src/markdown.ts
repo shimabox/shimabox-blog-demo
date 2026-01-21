@@ -261,6 +261,10 @@ function convertEmbeds(html: string): string {
       const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
       return `<div class="embed-card embed-twitter">
         <blockquote class="twitter-tweet" data-dnt="true">
+          <div class="twitter-loading">
+            <div class="twitter-loading-spinner"></div>
+            <span>Xのコンテンツを読み込み中...</span>
+          </div>
           <a href="${twitterUrl}"></a>
         </blockquote>
       </div>`;
@@ -274,6 +278,10 @@ function convertEmbeds(html: string): string {
       const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
       return `<div class="embed-card embed-twitter">
         <blockquote class="twitter-tweet" data-dnt="true">
+          <div class="twitter-loading">
+            <div class="twitter-loading-spinner"></div>
+            <span>Xのコンテンツを読み込み中...</span>
+          </div>
           <a href="${twitterUrl}"></a>
         </blockquote>
       </div>`;
@@ -384,6 +392,10 @@ function convertEmbeds(html: string): string {
       const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
       return `<li><div class="embed-card embed-twitter">
         <blockquote class="twitter-tweet" data-dnt="true">
+          <div class="twitter-loading">
+            <div class="twitter-loading-spinner"></div>
+            <span>Xのコンテンツを読み込み中...</span>
+          </div>
           <a href="${twitterUrl}"></a>
         </blockquote>
       </div>`;
