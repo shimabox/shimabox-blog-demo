@@ -274,8 +274,8 @@ mainブランチへのpushで自動デプロイが実行されます。手動実
 | deploy_type | 説明 |
 |-------------|------|
 | `diff` | 変更されたファイルのみ同期（デフォルト）。削除されたファイルも自動検出してR2から削除 |
-| `full` | 全ファイルを同期 + R2のorphaned filesを削除 |
-| `full-posts` | 記事・ページのみ全件同期（画像除く）+ R2のorphaned filesを削除 |
+| `full` | 全ファイルを同期 + R2のorphaned filesを削除 + 最新記事10件をプリウォーム |
+| `full-posts` | 記事・ページのみ全件同期（画像除く）+ R2のorphaned filesを削除 + 最新記事10件をプリウォーム |
 | `slug` | 指定したslugのみ同期（slug入力必要） |
 | `deploy` | 同期なしでデプロイのみ |
 

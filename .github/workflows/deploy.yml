@@ -428,9 +428,28 @@ jobs:
           echo "Warming: $BASE_URL/"
           curl -s "$BASE_URL/" > /dev/null || echo "Failed to warm top page"
 
+          # 更新された記事のキャッシュをウォーム
           WARM_URLS="${{ steps.detect.outputs.warm_urls }}"
 
-          if [ "${{ github.event.inputs.deploy_type }}" == "slug" ] && [ -n "${{ github.event.inputs.slug }}" ]; then
+          # full/full-posts の場合は最新10件をウォーム
+          if [ "${{ github.event.inputs.deploy_type }}" == "full" ] || [ "${{ github.event.inputs.deploy_type }}" == "full-posts" ]; then
+            echo "Warming latest 10 posts..."
+            # ファイル名で降順ソートして最新10件を取得
+            for MD_FILE in $(ls -r content/posts/*.md 2>/dev/null | head -10); do
+              FILENAME=$(basename "$MD_FILE" .md)
+              DATE_PART=$(echo "$FILENAME" | grep -oE '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
+              SLUG=$(echo "$FILENAME" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+              if [ -n "$DATE_PART" ] && [ -n "$SLUG" ]; then
+                YEAR=$(echo "$DATE_PART" | cut -d'-' -f1)
+                MONTH=$(echo "$DATE_PART" | cut -d'-' -f2)
+                DAY=$(echo "$DATE_PART" | cut -d'-' -f3)
+                URL="/$YEAR/$MONTH/$DAY/$SLUG/"
+                echo "Warming: ${BASE_URL}${URL}"
+                curl -s "${BASE_URL}${URL}" > /dev/null || echo "Failed to warm $URL"
+              fi
+            done
+          # slug指定の場合はファイルから日付を取得してURLを生成
+          elif [ "${{ github.event.inputs.deploy_type }}" == "slug" ] && [ -n "${{ github.event.inputs.slug }}" ]; then
             SLUG="${{ github.event.inputs.slug }}"
             MD_FILE=$(find content/posts -name "*-${SLUG}.md" 2>/dev/null | head -1)
             if [ -n "$MD_FILE" ]; then
