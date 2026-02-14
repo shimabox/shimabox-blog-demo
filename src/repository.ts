@@ -78,6 +78,19 @@ export async function getPostsByCategory(
   return posts.filter((p) => p.categories?.includes(category));
 }
 
+export async function getAdjacentPosts(
+  env: Env,
+  slug: string,
+): Promise<{ prev: PostMeta | null; next: PostMeta | null }> {
+  const posts = await listPosts(env);
+  const index = posts.findIndex((p) => p.slug === slug);
+  if (index === -1) return { prev: null, next: null };
+  // posts は日付降順なので、index-1 が新しい記事（次）、index+1 が古い記事（前）
+  const next = index > 0 ? posts[index - 1] : null;
+  const prev = index < posts.length - 1 ? posts[index + 1] : null;
+  return { prev, next };
+}
+
 /**
  * キャッシュを無効化
  * @param env - 環境変数

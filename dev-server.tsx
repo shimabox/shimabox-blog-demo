@@ -122,6 +122,19 @@ async function getPost(slug: string): Promise<Post | null> {
   return null;
 }
 
+// 前後の記事を取得
+function getAdjacentPosts(slug: string): {
+  prev: PostMeta | null;
+  next: PostMeta | null;
+} {
+  const posts = listPosts();
+  const index = posts.findIndex((p) => p.slug === slug);
+  if (index === -1) return { prev: null, next: null };
+  const next = index > 0 ? posts[index - 1] : null;
+  const prev = index < posts.length - 1 ? posts[index + 1] : null;
+  return { prev, next };
+}
+
 // カテゴリ別記事
 function getPostsByCategory(category: string): PostMeta[] {
   return listPosts().filter((p) => p.categories?.includes(category));
@@ -289,7 +302,9 @@ app.get("/:year/:month/:day/:slug/", async (c) => {
   const post = await getPost(slug);
   if (!post) return c.html(<NotFound env={env as any} />, 404);
 
-  return c.html(<PostView post={post} env={env as any} />);
+  const { prev } = getAdjacentPosts(slug);
+
+  return c.html(<PostView post={post} env={env as any} prevPost={prev} />);
 });
 
 // 末尾スラッシュなし → ありにリダイレクト

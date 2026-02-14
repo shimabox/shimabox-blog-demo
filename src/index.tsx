@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
 import {
+  getAdjacentPosts,
   getPost,
   getPostsByCategory,
   invalidateCache,
@@ -180,7 +181,9 @@ app.get("/:year/:month/:day/:slug/", async (c) => {
     );
   }
 
-  return c.html(<PostView post={post} env={c.env} />);
+  const { prev } = await getAdjacentPosts(c.env, slug);
+
+  return c.html(<PostView post={post} env={c.env} prevPost={prev} />);
 });
 
 // 末尾スラッシュなし → ありにリダイレクト（記事のみ）
