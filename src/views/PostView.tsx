@@ -1,13 +1,22 @@
 import type { FC } from "hono/jsx";
-import type { Env, Post } from "../types";
+import type { Env, Post, PostMeta } from "../types";
 import { Layout } from "./Layout";
 
 type PostViewProps = {
   post: Post;
   env: Env;
+  prevPost?: PostMeta | null;
 };
 
-export const PostView: FC<PostViewProps> = ({ post, env }) => {
+function postMetaUrl(meta: PostMeta): string {
+  const d = new Date(meta.date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `/${y}/${m}/${day}/${meta.slug}/`;
+}
+
+export const PostView: FC<PostViewProps> = ({ post, env, prevPost }) => {
   const date = new Date(post.date);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -153,6 +162,32 @@ export const PostView: FC<PostViewProps> = ({ post, env }) => {
           </div>
         )}
       </article>
+      {!post.fixedPage && prevPost && (
+        <nav class="post-nav">
+          <a href={postMetaUrl(prevPost)} class="post-nav-next">
+            <div class="post-nav-content">
+              <span class="post-nav-label">次の記事</span>
+              <span class="post-nav-title">{prevPost.title}</span>
+            </div>
+            <svg
+              class="post-nav-arrow"
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              role="img"
+              aria-label="次へ"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </a>
+        </nav>
+      )}
       <div class="back-link">
         {post.fixedPage ? (
           <a href="/">← TOPに戻る</a>
