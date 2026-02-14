@@ -168,10 +168,13 @@ jobs:
               r2_path="${file#content/}"
               DELETED_R2_PATHS="$DELETED_R2_PATHS $r2_path"
               DELETED_COUNT=$((DELETED_COUNT + 1))
-              # 記事の場合はslugを抽出（キャッシュ削除用）
+              # 記事・ページの場合はslugを抽出（キャッシュ削除用）
               if [[ "$file" == content/posts/*.md ]]; then
                 filename=$(basename "$file" .md)
                 slug=$(echo "$filename" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+                DELETED_SLUGS="$DELETED_SLUGS $slug"
+              elif [[ "$file" == content/pages/*.md ]]; then
+                slug=$(basename "$file" .md)
                 DELETED_SLUGS="$DELETED_SLUGS $slug"
               fi
             done <<< "$DELETED_FILES"
@@ -232,6 +235,19 @@ jobs:
               day=$(echo "$date_part" | cut -d'-' -f3)
               SLUGS="$SLUGS $slug"
               WARM_URLS="$WARM_URLS /$year/$month/$day/$slug/"
+            elif [[ "$file" == content/pages/*.md ]]; then
+              # ページのslugを抽出（ファイル名がそのままslug）
+              slug=$(basename "$file" .md)
+              SLUGS="$SLUGS $slug"
+              WARM_URLS="$WARM_URLS /$slug/"
+            elif [[ "$file" == content/images/ogp/*.png ]]; then
+              # OGP画像はmarkdown内で参照されないため、ファイル名からslugを抽出
+              ogp_filename=$(basename "$file" .png)
+              slug=$(echo "$ogp_filename" | sed 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-//')
+              if [ -n "$slug" ]; then
+                echo "OGP image changed, syncing slug: $slug"
+                add_slug "$slug"
+              fi
             elif [[ "$file" == content/images/* ]]; then
               image_path="/${file#content/}"
               echo "Looking for posts referencing: $image_path"
