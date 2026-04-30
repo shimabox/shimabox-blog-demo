@@ -327,6 +327,37 @@ function convertEmbeds(html: string): string {
     },
   );
 
+  // 動画ファイル（mp4/webm/mov/m4v）を <video> タグに変換
+  // <p><a href="...mp4">text</a></p>
+  html = html.replace(
+    /<p><a href="([^"]+\.(mp4|webm|mov|m4v))"[^>]*>[^<]*<\/a><\/p>/gi,
+    (_, url) => {
+      return `<div class="embed-card embed-video">
+        <video src="${url}" controls preload="metadata" playsinline></video>
+      </div>`;
+    },
+  );
+
+  // 単独行の動画URL（リンク化されていない場合）
+  html = html.replace(
+    /<p>((?:https?:\/\/|\/)[^\s<]+\.(mp4|webm|mov|m4v))<\/p>/gi,
+    (_, url) => {
+      return `<div class="embed-card embed-video">
+        <video src="${url}" controls preload="metadata" playsinline></video>
+      </div>`;
+    },
+  );
+
+  // リスト内の動画埋め込み
+  html = html.replace(
+    /<li><a href="([^"]+\.(mp4|webm|mov|m4v))"[^>]*>[^<]*<\/a>/gi,
+    (_, url) => {
+      return `<li><div class="embed-card embed-video">
+        <video src="${url}" controls preload="metadata" playsinline></video>
+      </div>`;
+    },
+  );
+
   // Gist の埋め込み
   // https://gist.github.com/username/gist_id
   html = html.replace(

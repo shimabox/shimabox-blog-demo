@@ -770,6 +770,22 @@ tr:hover {
   border: none;
 }
 
+.embed-video {
+  max-width: 720px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+}
+
+.embed-video video {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 4px;
+  background: #000;
+}
+
 .embed-github {
   max-width: 560px;
 }

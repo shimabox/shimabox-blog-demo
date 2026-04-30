@@ -279,6 +279,10 @@ function getContentType(path: string): string {
     webp: "image/webp",
     svg: "image/svg+xml",
     ico: "image/x-icon",
+    mp4: "video/mp4",
+    webm: "video/webm",
+    mov: "video/quicktime",
+    m4v: "video/x-m4v",
   };
   return types[ext || ""] || "application/octet-stream";
 }
