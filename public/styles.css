@@ -166,7 +166,7 @@ article a {
 }
 
 article img {
-  max-width: 100%;
+  max-width: min(100%, 720px);
   height: auto;
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -761,7 +761,7 @@ tr:hover {
 }
 
 .embed-youtube {
-  max-width: 560px;
+  max-width: 720px;
 }
 
 .embed-youtube iframe {
@@ -787,7 +787,7 @@ tr:hover {
 }
 
 .embed-github {
-  max-width: 560px;
+  max-width: 720px;
 }
 
 .embed-github a {
@@ -848,7 +848,7 @@ tr:hover {
 
 /* Amazon card */
 .embed-amazon {
-  max-width: 560px;
+  max-width: 720px;
 }
 
 .embed-amazon a {
