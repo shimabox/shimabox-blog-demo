@@ -170,6 +170,8 @@ npm run deploy
 | `npm run check` | Biome + 型チェック |
 | `npm run check:fix` | Biomeでチェック＆自動修正 |
 | `npm run typecheck` | 型チェックのみ |
+| `npm test` | vitestでテスト実行（一回のみ） |
+| `npm run test:watch` | vitestでテスト実行（watchモード） |
 
 ---
 
