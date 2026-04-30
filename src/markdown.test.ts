@@ -225,7 +225,7 @@ tags: []
     expect(post.content).toContain('id="おわりに"');
   });
 
-  it("重複する見出しIDにサフィックスが付く", async () => {
+  it("重複する見出しIDに連番サフィックスが付く", async () => {
     const raw = `---
 title: 重複テスト
 slug: dup-test
@@ -240,11 +240,44 @@ tags: []
 
 ## セクション
 
+テキスト
+
+## セクション
+
 テキスト`;
 
     const post = await parseMarkdown(raw);
     expect(post.content).toContain('id="セクション"');
     expect(post.content).toContain('id="セクション-1"');
+    expect(post.content).toContain('id="セクション-2"');
+  });
+
+  it("サフィックス付きIDと同名の見出しがあっても衝突しない", async () => {
+    const raw = `---
+title: 衝突テスト
+slug: collision-test
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+## セクション
+
+テキスト
+
+## セクション-1
+
+テキスト
+
+## セクション
+
+テキスト`;
+
+    const post = await parseMarkdown(raw);
+    // "セクション", "セクション-1"(自然な見出し), "セクション-2"(衝突を避けてスキップ)
+    expect(post.content).toContain('id="セクション"');
+    expect(post.content).toContain('id="セクション-1"');
+    expect(post.content).toContain('id="セクション-2"');
   });
 
   it("見出しが3つ以上で目次が生成される", async () => {

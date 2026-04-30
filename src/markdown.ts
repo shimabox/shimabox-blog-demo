@@ -538,7 +538,7 @@ export async function parseMarkdown(raw: string): Promise<Post> {
 
   // 見出しを収集
   const tocItems: TocItem[] = [];
-  const headingIds = new Map<string, number>();
+  const headingIds = new Map<string, boolean>();
 
   const renderer = new marked.Renderer();
 
@@ -547,12 +547,16 @@ export async function parseMarkdown(raw: string): Promise<Post> {
     if (depth === 2 || depth === 3) {
       let id = generateId(text);
 
-      // 重複IDの処理
-      const count = headingIds.get(id) || 0;
-      if (count > 0) {
-        id = `${id}-${count}`;
+      // 重複IDの処理: 既に使われているIDなら連番サフィックスを付ける
+      const baseId = id;
+      if (headingIds.has(id)) {
+        let suffix = 1;
+        while (headingIds.has(`${baseId}-${suffix}`)) {
+          suffix++;
+        }
+        id = `${baseId}-${suffix}`;
       }
-      headingIds.set(id, count + 1);
+      headingIds.set(id, true);
 
       tocItems.push({ level: depth, text, id });
       return `<h${depth} id="${id}">${text}</h${depth}>`;
