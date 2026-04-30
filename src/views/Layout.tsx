@@ -98,7 +98,7 @@ export const Layout: FC<LayoutProps> = ({ title, post, env, children }) => {
                 id="theme-toggle"
                 aria-label="テーマ切り替え"
               >
-                🌙
+                ☀️
               </button>
             </div>
             <nav>
@@ -135,18 +135,18 @@ export const Layout: FC<LayoutProps> = ({ title, post, env, children }) => {
 
             // Set initial icon
             if (html.getAttribute('data-theme') === 'dark') {
-              toggle.textContent = '☀️';
+              toggle.textContent = '🌙';
             }
 
             toggle.addEventListener('click', () => {
               const isDark = html.getAttribute('data-theme') === 'dark';
               if (isDark) {
                 html.removeAttribute('data-theme');
-                toggle.textContent = '🌙';
+                toggle.textContent = '☀️';
                 localStorage.setItem('theme', 'light');
               } else {
                 html.setAttribute('data-theme', 'dark');
-                toggle.textContent = '☀️';
+                toggle.textContent = '🌙';
                 localStorage.setItem('theme', 'dark');
               }
             });
