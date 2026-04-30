@@ -9,14 +9,6 @@ on:
       - 'CLAUDE.md'
       - '.gitignore'
       - 'LICENSE'
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - '.gitignore'
-      - 'LICENSE'
   workflow_dispatch:
     inputs:
       deploy_type:
@@ -37,12 +29,14 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+    # ENABLE_DEPLOY が "true" のリポジトリだけ deploy を走らせる。
+    # フォーク直後のテンプレ状態（未設定）では skip され、CI が緑になる。
+    if: vars.ENABLE_DEPLOY == 'true'
+    environment: production
     steps:
       - uses: actions/checkout@v5
         with:
@@ -56,90 +50,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # PRの場合はLint・型チェック
-      - name: Lint and type check
-        if: github.event_name == 'pull_request'
-        run: npm run check
-
-      # PRの場合はテスト実行
-      - name: Run tests
-        if: github.event_name == 'pull_request'
-        run: npm test
-
-      # PRの場合は変更内容を検出してサマリーを作成
-      - name: Detect PR changes
-        id: pr_changes
-        if: github.event_name == 'pull_request'
-        run: |
-          # mainブランチとの差分を取得
-          git fetch origin main --depth=1
-
-          echo "=========================================="
-          echo "📋 PR Content Changes Summary"
-          echo "=========================================="
-
-          # 追加されたファイル
-          ADDED=$(git -c core.quotepath=false diff --diff-filter=A --name-only origin/main...HEAD -- 'content/posts/*.md' 'content/pages/*.md' 'content/images/**' || true)
-          # 変更されたファイル
-          MODIFIED=$(git -c core.quotepath=false diff --diff-filter=M --name-only origin/main...HEAD -- 'content/posts/*.md' 'content/pages/*.md' 'content/images/**' || true)
-          # 削除されたファイル
-          DELETED=$(git -c core.quotepath=false diff --diff-filter=D --name-only origin/main...HEAD -- 'content/posts/*.md' 'content/pages/*.md' 'content/images/**' || true)
-
-          ADDED_COUNT=0
-          MODIFIED_COUNT=0
-          DELETED_COUNT=0
-          ADDED_LIST=""
-          MODIFIED_LIST=""
-          DELETED_LIST=""
-
-          # 追加ファイルをカウント・リスト化
-          if [ -n "$ADDED" ]; then
-            while IFS= read -r file; do
-              [ -z "$file" ] && continue
-              ADDED_COUNT=$((ADDED_COUNT + 1))
-              ADDED_LIST="$ADDED_LIST- \`$file\`\n"
-              echo "➕ Added: $file"
-            done <<< "$ADDED"
-          fi
-
-          # 変更ファイルをカウント・リスト化
-          if [ -n "$MODIFIED" ]; then
-            while IFS= read -r file; do
-              [ -z "$file" ] && continue
-              MODIFIED_COUNT=$((MODIFIED_COUNT + 1))
-              MODIFIED_LIST="$MODIFIED_LIST- \`$file\`\n"
-              echo "📝 Modified: $file"
-            done <<< "$MODIFIED"
-          fi
-
-          # 削除ファイルをカウント・リスト化
-          if [ -n "$DELETED" ]; then
-            while IFS= read -r file; do
-              [ -z "$file" ] && continue
-              DELETED_COUNT=$((DELETED_COUNT + 1))
-              DELETED_LIST="$DELETED_LIST- \`$file\`\n"
-              echo "🗑️  Deleted: $file"
-            done <<< "$DELETED"
-          fi
-
-          TOTAL=$((ADDED_COUNT + MODIFIED_COUNT + DELETED_COUNT))
-
-          echo ""
-          echo "Total: $TOTAL changes (Added: $ADDED_COUNT, Modified: $MODIFIED_COUNT, Deleted: $DELETED_COUNT)"
-          echo "=========================================="
-
-          # 出力を設定
-          echo "added_count=$ADDED_COUNT" >> $GITHUB_OUTPUT
-          echo "modified_count=$MODIFIED_COUNT" >> $GITHUB_OUTPUT
-          echo "deleted_count=$DELETED_COUNT" >> $GITHUB_OUTPUT
-          echo "total_count=$TOTAL" >> $GITHUB_OUTPUT
-
-          # マルチライン出力用（Base64エンコード）
-          echo "added_list=$(echo -e "$ADDED_LIST" | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "modified_list=$(echo -e "$MODIFIED_LIST" | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "deleted_list=$(echo -e "$DELETED_LIST" | base64 -w 0)" >> $GITHUB_OUTPUT
-
-      # 差分sync（push時 or workflow_dispatch で diff 選択時）※PR時はスキップ
+      # 差分sync（push時 or workflow_dispatch で diff 選択時）
       - name: Detect changed posts
         id: detect
         if: github.event_name == 'push' || github.event.inputs.deploy_type == 'diff'
@@ -345,68 +256,12 @@ jobs:
         id: deploy
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%s | iconv -c -f UTF-8 -t ASCII//TRANSLIT || echo "deploy")
-
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
-            npx wrangler pages deploy ./public --branch="$BRANCH_NAME" --commit-message="$COMMIT_MSG"
-          else
-            npx wrangler pages deploy ./public --commit-message="$COMMIT_MSG"
-          fi
+          npx wrangler pages deploy ./public --commit-message="$COMMIT_MSG"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      # PRに変更内容をコメント
-      - name: Comment changes on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const addedCount = parseInt('${{ steps.pr_changes.outputs.added_count }}') || 0;
-            const modifiedCount = parseInt('${{ steps.pr_changes.outputs.modified_count }}') || 0;
-            const deletedCount = parseInt('${{ steps.pr_changes.outputs.deleted_count }}') || 0;
-            const totalCount = addedCount + modifiedCount + deletedCount;
-
-            // Base64デコード
-            const decodeBase64 = (str) => {
-              if (!str) return '';
-              try {
-                return Buffer.from(str, 'base64').toString('utf-8').trim();
-              } catch {
-                return '';
-              }
-            };
-
-            const addedList = decodeBase64('${{ steps.pr_changes.outputs.added_list }}');
-            const modifiedList = decodeBase64('${{ steps.pr_changes.outputs.modified_list }}');
-            const deletedList = decodeBase64('${{ steps.pr_changes.outputs.deleted_list }}');
-
-            let body = '📋 **Content Changes**\n\n';
-
-            if (totalCount > 0) {
-              if (addedCount > 0) {
-                body += `<details>\n<summary>➕ Added (${addedCount})</summary>\n\n${addedList}\n</details>\n\n`;
-              }
-
-              if (modifiedCount > 0) {
-                body += `<details>\n<summary>📝 Modified (${modifiedCount})</summary>\n\n${modifiedList}\n</details>\n\n`;
-              }
-
-              if (deletedCount > 0) {
-                body += `<details>\n<summary>🗑️ Deleted (${deletedCount})</summary>\n\n${deletedList}\n</details>\n\n`;
-              }
-            } else {
-              body += '_No content file changes detected._\n';
-            }
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });
-
-      # キャッシュクリア（PR時はスキップ）
+      # キャッシュクリア
       - name: Invalidate cache
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_type != 'deploy')
         run: |

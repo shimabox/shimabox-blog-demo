@@ -266,10 +266,26 @@ curl -X POST https://your-blog-name.pages.dev/api/invalidate \
 
 ## GitHub Actions
 
-mainブランチへのpushで自動デプロイが実行されます。手動実行（workflow_dispatch）も可能。
+CI（lint/型チェック/テスト）と Deploy（R2同期/Pagesデプロイ/キャッシュ）は別ワークフローに分かれています。
+
+| Workflow | トリガー | 内容 | 必要設定 |
+|----------|---------|------|---------|
+| `ci.yml` | PR / push to main | Lint / typecheck / test / PR変更コメント | なし |
+| `deploy.yml` | push to main / workflow_dispatch | R2同期 / Pagesデプロイ / キャッシュ | secrets + `ENABLE_DEPLOY=true` |
 
 > [!IMPORTANT]
 > deploy.yml は直前のコミットとの差分を検知して同期するため、PRをマージする際は **Squash and merge** を使用してください。通常のマージだと差分検知が正しく動作しない場合があります。
+
+### Deploy を有効化する
+
+フォーク直後はデプロイが skip されるようになっています（テンプレート状態でCIが落ちないように）。
+本番運用を始めるときは、リポジトリの **Settings > Secrets and variables > Actions > Variables** に以下を追加してください:
+
+| Variable | 値 | 説明 |
+|----------|---|------|
+| `ENABLE_DEPLOY` | `true` | これが `true` のときだけ deploy.yml が実行されます |
+
+加えて、後述の Secrets（`CLOUDFLARE_API_TOKEN` など）も設定する必要があります。
 
 ### deploy_type オプション
 
@@ -369,7 +385,8 @@ openssl rand -base64 32
 
 ### Environment の作成
 
-GitHub リポジトリの Settings > Environments で `production` と `preview` を作成し、上記のSecretsを設定してください。
+GitHub リポジトリの Settings > Environments で `production` を作成し、上記のSecretsを設定してください。
+（deploy.yml は `production` 環境のみを参照します）
 
 ---
 
@@ -461,7 +478,7 @@ npm run sync:delete
 
 > [!NOTE]
 > `SITE_URL`と`ADMIN_KEY`環境変数が必要です（本番APIを使用してR2オブジェクト一覧を取得するため）。
-> mainブランチへのpush時は、CIで自動的に削除されたファイルがR2から削除されます。
+> mainブランチへのpush時は、Deployワークフローで自動的に削除されたファイルがR2から削除されます。
 
 ### 本番で更新が反映されない
 
