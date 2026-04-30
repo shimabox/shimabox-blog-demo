@@ -21,7 +21,8 @@ const PER_PAGE = 10;
 // 静的ファイル（最初に定義）
 // ========================================
 
-// 画像配信（/images/...）
+// 画像・動画配信（/images/...）
+// Range リクエスト対応（Safari の <video> や大きな画像のシーク再生に必要）
 app.get("/images/:path{.+}", async (c) => {
   const path = c.req.param("path");
 
@@ -31,17 +32,83 @@ app.get("/images/:path{.+}", async (c) => {
   }
 
   const key = `images/${path}`;
+  const contentType = getContentType(path);
+  const rangeHeader = c.req.header("Range");
+
+  if (rangeHeader) {
+    return serveRange(c, key, contentType, rangeHeader);
+  }
 
   const object = await c.env.BUCKET.get(key);
   if (!object) return c.html(<NotFound env={c.env} />, 404);
 
-  const contentType = getContentType(path);
-
   return c.body(object.body as ReadableStream, 200, {
     "Content-Type": contentType,
+    "Content-Length": String(object.size),
+    "Accept-Ranges": "bytes",
     "Cache-Control": "public, max-age=31536000",
   });
 });
+
+async function serveRange(
+  c: Context<{ Bindings: Env }>,
+  key: string,
+  contentType: string,
+  rangeHeader: string,
+): Promise<Response> {
+  const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match) {
+    return c.body(null, 416);
+  }
+
+  const head = await c.env.BUCKET.head(key);
+  if (!head) return c.html(<NotFound env={c.env} />, 404);
+
+  const totalSize = head.size;
+  const startStr = match[1];
+  const endStr = match[2];
+
+  let start: number;
+  let end: number;
+
+  if (startStr === "" && endStr !== "") {
+    // suffix range: bytes=-N → 末尾Nバイト
+    const suffixLen = Number.parseInt(endStr, 10);
+    if (suffixLen <= 0) {
+      return c.body(null, 416, { "Content-Range": `bytes */${totalSize}` });
+    }
+    start = Math.max(0, totalSize - suffixLen);
+    end = totalSize - 1;
+  } else if (startStr !== "") {
+    start = Number.parseInt(startStr, 10);
+    end = endStr !== "" ? Number.parseInt(endStr, 10) : totalSize - 1;
+  } else {
+    return c.body(null, 416, { "Content-Range": `bytes */${totalSize}` });
+  }
+
+  // start が範囲外、または start > end は 416
+  if (start >= totalSize || start > end) {
+    return c.body(null, 416, { "Content-Range": `bytes */${totalSize}` });
+  }
+  // end がファイルサイズを超えた場合は仕様上 totalSize-1 に丸める（RFC 7233）
+  if (end >= totalSize) {
+    end = totalSize - 1;
+  }
+
+  const length = end - start + 1;
+  const object = await c.env.BUCKET.get(key, {
+    range: { offset: start, length },
+  });
+  if (!object) return c.html(<NotFound env={c.env} />, 404);
+
+  return c.body(object.body as ReadableStream, 206, {
+    "Content-Type": contentType,
+    "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+    "Content-Length": String(length),
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "public, max-age=31536000",
+  });
+}
 
 // OGP画像（静的ファイル配信）
 app.get("/ogp/:slug", async (c) => {

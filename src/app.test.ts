@@ -36,14 +36,71 @@ function createMockBindings(files: Record<string, string> = {}): Env {
         .map((key) => ({ key }));
       return Promise.resolve({ objects, truncated: false });
     }),
-    get: vi.fn((key: string) => {
+    head: vi.fn((key: string) => {
       const content = files[key];
       if (!content) return Promise.resolve(null);
       return Promise.resolve({
-        text: () => Promise.resolve(content),
-        body: new ReadableStream(),
+        size: new TextEncoder().encode(content).length,
       });
     }),
+    get: vi.fn(
+      (
+        key: string,
+        options?: {
+          range?: {
+            offset?: number;
+            length?: number;
+            suffix?: number;
+          };
+        },
+      ) => {
+        const content = files[key];
+        if (!content) return Promise.resolve(null);
+        const bytes = new TextEncoder().encode(content);
+        const fullSize = bytes.length;
+
+        // range指定なし → 全体
+        if (!options?.range) {
+          return Promise.resolve({
+            size: fullSize,
+            text: () => Promise.resolve(content),
+            body: new ReadableStream({
+              start(controller) {
+                controller.enqueue(bytes);
+                controller.close();
+              },
+            }),
+          });
+        }
+
+        // range指定あり
+        const { offset = 0, length, suffix } = options.range;
+        let start: number;
+        let end: number;
+        if (suffix !== undefined) {
+          start = Math.max(0, fullSize - suffix);
+          end = fullSize;
+        } else {
+          start = offset;
+          end =
+            length !== undefined
+              ? Math.min(start + length, fullSize)
+              : fullSize;
+        }
+        if (start >= fullSize) return Promise.resolve(null);
+        const sliced = bytes.slice(start, end);
+        return Promise.resolve({
+          size: fullSize,
+          text: () => Promise.resolve(new TextDecoder().decode(sliced)),
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(sliced);
+              controller.close();
+            },
+          }),
+        });
+      },
+    ),
   } as unknown as R2Bucket;
 
   const cache = {
@@ -114,6 +171,8 @@ describe("Honoアプリ統合テスト", () => {
       date: "2025-01-01",
       fixedPage: "true",
     }),
+    // Range test用: 200バイトのASCII文字列（"0123456789"を20回）
+    "images/sample.png": "0123456789".repeat(20),
   };
 
   describe("トップページ", () => {
@@ -269,6 +328,100 @@ describe("Honoアプリ統合テスト", () => {
     it("存在しない画像は404を返す", async () => {
       const env = createMockBindings(files);
       const res = await request("/images/nonexistent.png", env);
+      expect(res.status).toBe(404);
+    });
+
+    it("通常GETは200とAccept-Ranges/Content-Lengthを返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+      expect(res.headers.get("Content-Length")).toBe("200");
+    });
+  });
+
+  describe("画像配信 - Range request対応", () => {
+    it("Range: bytes=0-99 で先頭100バイトを206で返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=0-99" },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 0-99/200");
+      expect(res.headers.get("Content-Length")).toBe("100");
+      expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+    });
+
+    it("Range: bytes=0- で全体を206で返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=0-" },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 0-199/200");
+      expect(res.headers.get("Content-Length")).toBe("200");
+    });
+
+    it("Range: bytes=100-149 で中間50バイトを206で返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=100-149" },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 100-149/200");
+      expect(res.headers.get("Content-Length")).toBe("50");
+    });
+
+    it("suffix range: bytes=-50 で末尾50バイトを206で返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=-50" },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 150-199/200");
+      expect(res.headers.get("Content-Length")).toBe("50");
+    });
+
+    it("終端がファイルサイズを超えるRangeは末尾までclampして206を返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=0-999" },
+      });
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 0-199/200");
+      expect(res.headers.get("Content-Length")).toBe("200");
+    });
+
+    it("startがファイルサイズ以上のRangeは416を返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=500-600" },
+      });
+      expect(res.status).toBe(416);
+      expect(res.headers.get("Content-Range")).toBe("bytes */200");
+    });
+
+    it("不正なRangeフォーマットは416を返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=abc" },
+      });
+      expect(res.status).toBe(416);
+    });
+
+    it("start>endのRangeは416を返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/sample.png", env, {
+        headers: { Range: "bytes=100-50" },
+      });
+      expect(res.status).toBe(416);
+    });
+
+    it("Rangeリクエストでも存在しないファイルは404を返す", async () => {
+      const env = createMockBindings(files);
+      const res = await request("/images/nonexistent.png", env, {
+        headers: { Range: "bytes=0-99" },
+      });
       expect(res.status).toBe(404);
     });
   });
