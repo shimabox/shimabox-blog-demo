@@ -35,5 +35,8 @@
   "version": "1.0.0",
   "description": "Hono + Cloudflare Pages + R2 blog template",
   "keywords": ["hono", "cloudflare", "blog", "r2"],
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  }
 }
