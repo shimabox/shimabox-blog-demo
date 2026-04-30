@@ -570,6 +570,42 @@ tags: []
         "https://gist.github.com/user/abc123def456.js",
       );
     });
+
+    it("動画URL（mp4）がvideoタグに変換され #t=0.001 が付与される", async () => {
+      const raw = `---
+title: 動画テスト
+slug: video-test
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+/images/2026/05/sample.mp4`;
+
+      const post = await parseMarkdown(raw);
+      expect(post.content).toContain("embed-video");
+      expect(post.content).toContain(
+        '<video src="/images/2026/05/sample.mp4#t=0.001"',
+      );
+    });
+
+    it("動画URLが既にfragment(#)を含む場合は #t=0.001 を付与しない", async () => {
+      const raw = `---
+title: 動画テスト
+slug: video-fragment-test
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+/images/2026/05/sample.mp4#t=10`;
+
+      const post = await parseMarkdown(raw);
+      expect(post.content).toContain(
+        '<video src="/images/2026/05/sample.mp4#t=10"',
+      );
+      expect(post.content).not.toContain("#t=10#t=0.001");
+    });
   });
 
   it("rawContentに本文が含まれ、</scriptがプレースホルダーに置換される", async () => {
