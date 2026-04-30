@@ -30,7 +30,7 @@ const AVATAR_PATH = "./content/images/avatar.png";
 const SITE_TITLE = "Your Blog Title";
 const SITE_DESCRIPTION = "Your blog description";
 
-interface PostMeta {
+export interface PostMeta {
   title: string;
   slug: string;
   date: string;
@@ -39,7 +39,7 @@ interface PostMeta {
   ogpBg?: boolean;
 }
 
-function parseFrontmatter(content: string): PostMeta {
+export function parseFrontmatter(content: string): PostMeta {
   const match = content.match(/^---\n([\s\S]*?)\n---/);
   if (!match) return { title: "Untitled", slug: "", date: "", categories: [] };
 
@@ -47,20 +47,31 @@ function parseFrontmatter(content: string): PostMeta {
   const data: Record<string, string> = {};
   let categories: string[] = [];
 
+  // 外側の対応するクォート／アポストロフィだけを剥がす（値の中身は保持）
+  const stripOuterQuotes = (s: string): string => {
+    if (
+      (s.startsWith('"') && s.endsWith('"')) ||
+      (s.startsWith("'") && s.endsWith("'"))
+    ) {
+      return s.slice(1, -1);
+    }
+    return s;
+  };
+
   for (const line of frontmatter.split("\n")) {
     // カテゴリの配列をパース
     const categoriesMatch = line.match(/^categories:\s*\[(.*)\]$/);
     if (categoriesMatch) {
       categories = categoriesMatch[1]
         .split(",")
-        .map((t) => t.trim().replace(/["']/g, ""))
+        .map((t) => stripOuterQuotes(t.trim()))
         .filter((t) => t);
       continue;
     }
 
-    const m = line.match(/^(\w+):\s*["']?([^"'\n]+)["']?$/);
+    const m = line.match(/^(\w+):\s*(.+)$/);
     if (m) {
-      data[m[1]] = m[2];
+      data[m[1]] = stripOuterQuotes(m[2].trim());
     }
   }
 
