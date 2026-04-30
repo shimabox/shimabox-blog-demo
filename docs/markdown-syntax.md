@@ -76,6 +76,22 @@ https://www.youtube.com/watch?v=VIDEO_ID
 https://youtu.be/VIDEO_ID
 ```
 
+### 動画ファイル（mp4 / webm / mov / m4v）
+
+`.mp4` `.webm` `.mov` `.m4v` への単独行URLを `<video>` タグに変換します。
+
+```markdown
+/images/2026/04/sample.mp4
+```
+
+または絶対URL:
+
+```markdown
+https://example.com/path/to/video.mp4
+```
+
+動画ファイルは `content/images/YYYY/MM/` に配置すれば `npm run sync` でR2に同期されます。
+
 ### Amazon
 
 ```markdown
