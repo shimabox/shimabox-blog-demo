@@ -21,6 +21,9 @@ Hono と Cloudflare Pages を使ったブログテンプレートです。
 
 リポジトリをCloneして、ローカルで動作確認できます。
 
+> [!NOTE]
+> Node.js 24以上が必要です。[mise](https://mise.jdx.dev/) を使っていれば `.mise.toml` でバージョンが自動的に揃います。
+
 ```bash
 git clone https://github.com/shimabox/shimabox-blog-demo.git
 cd shimabox-blog-demo
