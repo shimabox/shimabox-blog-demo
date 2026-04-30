@@ -387,15 +387,37 @@ function convertEmbeds(html: string): string {
   // Amazon リンクをカードに変換（商品名を表示）
   // https://www.amazon.co.jp/dp/ASIN または https://www.amazon.co.jp/gp/product/ASIN
   // https://amzn.asia/d/xxx または https://amzn.to/xxx（短縮URL）
-  const amazonCardHtml = (
-    url: string,
-    linkText: string,
-  ) => `<div class="embed-card embed-amazon">
+  const extractAsin = (url: string): string | null => {
+    const match = url.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/);
+    return match ? match[2] : null;
+  };
+
+  const amazonCardHtml = (url: string, linkText: string) => {
+    const asin = extractAsin(url);
+    if (asin) {
+      const imageUrl = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL160_.jpg`;
+      return `<div class="embed-card embed-amazon">
+        <a href="${url}" target="_blank" rel="noopener noreferrer">
+          <div class="amazon-card-image">
+            <img src="${imageUrl}" alt="${linkText}" loading="lazy" referrerpolicy="no-referrer">
+          </div>
+          <div class="amazon-card-body">
+            <div class="amazon-card-service">
+              <img src="https://icons.duckduckgo.com/ip3/www.amazon.co.jp.ico" alt="" class="amazon-icon" referrerpolicy="no-referrer">
+              <span class="amazon-card-service-name">Amazon</span>
+            </div>
+            <span class="amazon-card-title">${linkText}</span>
+          </div>
+        </a>
+      </div>`;
+    }
+    return `<div class="embed-card embed-amazon">
         <a href="${url}" target="_blank" rel="noopener noreferrer">
           <img src="https://icons.duckduckgo.com/ip3/www.amazon.co.jp.ico" alt="" class="amazon-icon" referrerpolicy="no-referrer">
           <span class="amazon-card-title">${linkText}</span>
         </a>
       </div>`;
+  };
 
   // 通常のAmazon URL
   html = html.replace(

@@ -553,6 +553,42 @@ tags: []
       expect(post.content).toContain("商品名");
     });
 
+    it("ASIN を抽出できるAmazon URLは商品画像付き2カラムレイアウトになる", async () => {
+      const raw = `---
+title: Amazon2カラムテスト
+slug: amazon-2col-test
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[商品名](https://www.amazon.co.jp/dp/B08N5WRWNW)`;
+
+      const post = await parseMarkdown(raw);
+      expect(post.content).toContain("amazon-card-image");
+      expect(post.content).toContain("amazon-card-body");
+      expect(post.content).toContain(
+        "https://images-na.ssl-images-amazon.com/images/P/B08N5WRWNW.01._SL160_.jpg",
+      );
+    });
+
+    it("ASIN を抽出できないAmazon短縮URLは1カラムにフォールバックする", async () => {
+      const raw = `---
+title: Amazon短縮フォールバックテスト
+slug: amazon-fallback-test
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[商品名](https://amzn.to/3xYzAbc)`;
+
+      const post = await parseMarkdown(raw);
+      expect(post.content).toContain("embed-amazon");
+      expect(post.content).not.toContain("amazon-card-image");
+      expect(post.content).not.toContain("amazon-card-body");
+    });
+
     it("Gist URLが埋め込みに変換される", async () => {
       const raw = `---
 title: Gistテスト
