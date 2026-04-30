@@ -61,6 +61,11 @@ jobs:
         if: github.event_name == 'pull_request'
         run: npm run check
 
+      # PRの場合はテスト実行
+      - name: Run tests
+        if: github.event_name == 'pull_request'
+        run: npm test
+
       # PRの場合は変更内容を検出してサマリーを作成
       - name: Detect PR changes
         id: pr_changes
