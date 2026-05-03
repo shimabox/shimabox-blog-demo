@@ -33,7 +33,14 @@ export const PostView: FC<PostViewProps> = ({ post, env, prevPost }) => {
         <div class="post-header-detail">
           {post.image && (
             <div class="post-thumbnail-detail">
-              <img src={post.image} alt={post.title} />
+              <img
+                src={post.image}
+                alt={post.title}
+                width="120"
+                height="120"
+                fetchpriority="high"
+                decoding="async"
+              />
             </div>
           )}
           <div class="post-title-meta-detail">
@@ -43,6 +50,9 @@ export const PostView: FC<PostViewProps> = ({ post, env, prevPost }) => {
                 src={hatenaBookmarkUrl}
                 style="vertical-align:middle;margin:3px 0 0 5px;border:none;border-radius:0;"
                 alt="はてなブックマーク"
+                width="35"
+                height="13"
+                decoding="async"
               />
             </h1>
             <div class="post-date">
