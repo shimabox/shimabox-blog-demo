@@ -167,6 +167,10 @@ npm run deploy
 | `npm run generate-ogp` | OGP画像を生成 |
 | `npm run generate-ogp -- slug --force` | 特定記事のOGPを上書き生成 |
 | `npm run generate-ogp:force` | 全OGPを上書き生成 |
+| `npm run optimize-images` | サムネ画像（WebP）を生成（差分処理） |
+| `npm run optimize-images -- slug` | 特定slugのサムネのみ生成 |
+| `npm run optimize-images -- slug --force` | 特定slugを強制再生成 |
+| `npm run optimize-images:force` | サムネ画像を全件上書き生成 |
 | `npm run check` | Biome + 型チェック |
 | `npm run check:fix` | Biomeでチェック＆自動修正 |
 | `npm run typecheck` | 型チェックのみ |
@@ -237,11 +241,16 @@ npm run deploy
 # 2. OGP画像生成
 npm run generate-ogp -- slug-name --force
 
-# 3. ローカル確認
+# 3. サムネ画像 WebP を生成（frontmatter `image:` 指定時）
+npm run optimize-images -- slug-name
+
+# 4. ローカル確認
 npm run dev
 
-# 4. mainにpush → 自動デプロイ
+# 5. mainにpush → 自動デプロイ
 ```
+
+> **画像差し替え時の注意**: 既存の画像ファイルを上書きした場合も `npm run optimize-images` を1回叩く。元画像の mtime が thumb より新しければ自動再生成される（`--force` 不要）。
 
 ---
 
