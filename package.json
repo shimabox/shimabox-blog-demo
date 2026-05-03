@@ -13,6 +13,8 @@
     "sync:delete": "tsx scripts/sync.ts --delete",
     "generate-ogp": "tsx scripts/generate-ogp.ts",
     "generate-ogp:force": "tsx scripts/generate-ogp.ts --force",
+    "optimize-images": "tsx scripts/optimize-images.ts",
+    "optimize-images:force": "tsx scripts/optimize-images.ts --force",
     "log:prod": "npx wrangler tail",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -31,6 +33,7 @@
     "@cloudflare/workers-types": "^4.20260103.0",
     "@types/livereload": "^0.9.5",
     "livereload": "^0.10.3",
+    "sharp": "^0.34.5",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.4",

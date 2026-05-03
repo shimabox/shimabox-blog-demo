@@ -214,6 +214,17 @@ function convertEmoji(html: string): string {
 }
 
 /**
+ * alt属性のない<img>タグに空alt（装飾画像扱い）を補完
+ * — マークダウン内に直書きされた `<img>` の alt 抜けを防ぐ
+ */
+function ensureImgAlt(html: string): string {
+  return html.replace(/<img\b([^>]*?)\/?>/gi, (match, attrs) => {
+    if (/\salt\s*=/.test(attrs)) return match;
+    return `<img${attrs} alt="">`;
+  });
+}
+
+/**
  * GitHub Alertsを変換
  * > [!NOTE] → styled alert box
  */
@@ -628,6 +639,9 @@ export async function parseMarkdown(raw: string): Promise<Post> {
   };
 
   let bodyHtml = await marked(content, { renderer, async: true });
+
+  // alt属性のない<img>に空altを付与（装飾扱い／a11y対策）
+  bodyHtml = ensureImgAlt(bodyHtml);
 
   // GitHub Alertsを変換
   bodyHtml = convertAlerts(bodyHtml);

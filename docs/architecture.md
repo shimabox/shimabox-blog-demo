@@ -181,7 +181,8 @@ your-blog/
 │   └── _routes.json       # 静的ファイルルーティング
 ├── scripts/               # ユーティリティスクリプト
 │   ├── sync.ts            # R2同期
-│   └── generate-ogp.ts    # OGP画像生成
+│   ├── generate-ogp.ts    # OGP画像生成
+│   └── optimize-images.ts # サムネ画像（WebP）生成
 ├── src/
 │   ├── index.tsx          # ルーティング
 │   ├── markdown.ts        # Markdownパーサー（目次・埋め込み対応）
