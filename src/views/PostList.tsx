@@ -36,6 +36,14 @@ function getHatenaBookmarkUrl(
   return `//b.hatena.ne.jp/entry/image/${encodeURI(postUrl)}`;
 }
 
+/**
+ * /images/foo.png → /images/foo-thumb.webp
+ * scripts/optimize-images.ts が生成する縮小版 WebP のパスを返す
+ */
+function thumbWebpUrl(originalUrl: string): string {
+  return originalUrl.replace(/\.(jpe?g|png)$/i, "-thumb.webp");
+}
+
 export const PostList: FC<PostListProps> = ({
   posts,
   env,
@@ -68,7 +76,20 @@ export const PostList: FC<PostListProps> = ({
               <div class="post-header">
                 {post.image && (
                   <a href={url} class="post-thumbnail">
-                    <img src={post.image} alt={post.title} loading="lazy" />
+                    <picture>
+                      <source
+                        srcset={thumbWebpUrl(post.image)}
+                        type="image/webp"
+                      />
+                      <img
+                        src={post.image}
+                        alt={post.title}
+                        loading="lazy"
+                        decoding="async"
+                        width="80"
+                        height="80"
+                      />
+                    </picture>
                   </a>
                 )}
                 <div class="post-title-meta">
@@ -102,7 +123,7 @@ export const PostList: FC<PostListProps> = ({
                 <p class="post-excerpt">
                   {post.excerpt}
                   <a href={url} class="read-more">
-                    続きを読む
+                    <span class="sr-only">「{post.title}」の</span>続きを読む
                   </a>
                 </p>
               )}
