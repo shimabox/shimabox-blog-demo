@@ -99,6 +99,9 @@ export const PostList: FC<PostListProps> = ({
                       src={hatenaBookmarkUrl}
                       style="vertical-align:middle;margin:3px 0 3px 5px;border:none;border-radius:0;"
                       alt="はてなブックマーク"
+                      width="35"
+                      height="13"
+                      decoding="async"
                     />
                   </h2>
                   <div class="post-date">

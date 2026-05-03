@@ -63,6 +63,7 @@ export const Layout: FC<LayoutProps> = ({ title, post, env, children }) => {
 
           {/* CSS */}
           <link rel="stylesheet" href="/styles.css" />
+          {post?.image && <link rel="preload" as="image" href={post.image} />}
 
           {/* 記事ページのみ: highlight.js / Twitter widget の preconnect / dns-prefetch */}
           {post && (

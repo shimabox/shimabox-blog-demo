@@ -214,13 +214,22 @@ function convertEmoji(html: string): string {
 }
 
 /**
- * alt属性のない<img>タグに空alt（装飾画像扱い）を補完
- * — マークダウン内に直書きされた `<img>` の alt 抜けを防ぐ
+ * 本文内の<img>に表示安定化と遅延読み込み用の属性を補完する。
+ * alt抜けは装飾画像扱いの空altにする。
  */
-function ensureImgAlt(html: string): string {
-  return html.replace(/<img\b([^>]*?)\/?>/gi, (match, attrs) => {
-    if (/\salt\s*=/.test(attrs)) return match;
-    return `<img${attrs} alt="">`;
+function ensureImgAttributes(html: string): string {
+  return html.replace(/<img\b([^>]*?)\/?>/gi, (_match, attrs) => {
+    let nextAttrs = attrs;
+    if (!/\salt\s*=/.test(nextAttrs)) {
+      nextAttrs += ' alt=""';
+    }
+    if (!/\sloading\s*=/.test(nextAttrs)) {
+      nextAttrs += ' loading="lazy"';
+    }
+    if (!/\sdecoding\s*=/.test(nextAttrs)) {
+      nextAttrs += ' decoding="async"';
+    }
+    return `<img${nextAttrs}>`;
   });
 }
 
@@ -640,9 +649,6 @@ export async function parseMarkdown(raw: string): Promise<Post> {
 
   let bodyHtml = await marked(content, { renderer, async: true });
 
-  // alt属性のない<img>に空altを付与（装飾扱い／a11y対策）
-  bodyHtml = ensureImgAlt(bodyHtml);
-
   // GitHub Alertsを変換
   bodyHtml = convertAlerts(bodyHtml);
 
@@ -651,6 +657,9 @@ export async function parseMarkdown(raw: string): Promise<Post> {
 
   // GitHub埋め込みを変換（API呼び出しあり）
   bodyHtml = await convertGitHubEmbeds(bodyHtml);
+
+  // 本文内画像のalt補完と遅延読み込み属性を付与
+  bodyHtml = ensureImgAttributes(bodyHtml);
 
   // 目次を生成（見出しが3つ以上ある場合のみ、fixedPage: true で無効化）
   const isFixedPage = data.fixedPage === true;
