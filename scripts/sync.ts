@@ -398,6 +398,15 @@ async function syncBySlug(slug: string) {
         const imgPath = join(CONTENT_DIR, "images", img);
         if (existsSync(imgPath)) {
           if (syncFile(imgPath, `images/${img}`)) total++;
+
+          // optimize-images.ts が生成する <basename>-thumb.webp も同期
+          const ext = img.match(/\.[^.]+$/)?.[0] ?? "";
+          const base = img.slice(0, img.length - ext.length);
+          const thumbRel = `${base}-thumb.webp`;
+          const thumbPath = join(CONTENT_DIR, "images", thumbRel);
+          if (existsSync(thumbPath)) {
+            if (syncFile(thumbPath, `images/${thumbRel}`)) total++;
+          }
         } else {
           console.log(`   ⚠️  Not found: ${img}`);
         }
