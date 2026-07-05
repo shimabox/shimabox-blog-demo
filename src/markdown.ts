@@ -269,154 +269,21 @@ function convertAlerts(html: string): string {
   );
 }
 
-/**
- * URLを埋め込みカードに変換
- */
-function convertEmbeds(html: string): string {
-  // X (Twitter) の埋め込み
-  // x.com を twitter.com に変換
-  html = html.replace(
-    /<p><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a><\/p>/g,
-    (_, _url, _domain, username, tweetId) => {
-      const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
-      return `<div class="embed-card embed-twitter">
-        <blockquote class="twitter-tweet" data-dnt="true">
-          <div class="twitter-loading">
-            <div class="twitter-loading-spinner"></div>
-            <span>Xのコンテンツを読み込み中...</span>
-          </div>
-          <a href="${twitterUrl}"></a>
-        </blockquote>
-      </div>`;
-    },
-  );
+// Safari は preload="metadata" で初期フレームを描画しないため、
+// メディアフラグメント #t=0.001 を付与して最初のフレームを表示させる
+const withMediaFragment = (url: string) =>
+  url.includes("#") ? url : `${url}#t=0.001`;
 
-  // 単独行のX/Twitter URL（リンク化されていない場合）
-  html = html.replace(
-    /<p>(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+)[^\s<]*)<\/p>/g,
-    (_, _url, _domain, username, tweetId) => {
-      const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
-      return `<div class="embed-card embed-twitter">
-        <blockquote class="twitter-tweet" data-dnt="true">
-          <div class="twitter-loading">
-            <div class="twitter-loading-spinner"></div>
-            <span>Xのコンテンツを読み込み中...</span>
-          </div>
-          <a href="${twitterUrl}"></a>
-        </blockquote>
-      </div>`;
-    },
-  );
+const extractAsin = (url: string): string | null => {
+  const match = url.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/);
+  return match ? match[2] : null;
+};
 
-  // YouTube の埋め込み
-  // https://www.youtube.com/watch?v=VIDEO_ID または https://youtu.be/VIDEO_ID
-  html = html.replace(
-    /<p><a href="(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a><\/p>/g,
-    (_, __, ___, videoId) => {
-      return `<div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
-
-  html = html.replace(
-    /<p><a href="(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a><\/p>/g,
-    (_, __, videoId) => {
-      return `<div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
-
-  // 単独行のYouTube URL
-  html = html.replace(
-    /<p>(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)[^\s<]*)<\/p>/g,
-    (_, __, ___, videoId) => {
-      return `<div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
-
-  html = html.replace(
-    /<p>(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+)[^\s<]*)<\/p>/g,
-    (_, __, videoId) => {
-      return `<div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
-
-  // 動画ファイル（mp4/webm/mov/m4v）を <video> タグに変換
-  // Safari は preload="metadata" で初期フレームを描画しないため、
-  // メディアフラグメント #t=0.001 を付与して最初のフレームを表示させる
-  const withMediaFragment = (url: string) =>
-    url.includes("#") ? url : `${url}#t=0.001`;
-
-  // <p><a href="...mp4">text</a></p>
-  html = html.replace(
-    /<p><a href="([^"]+\.(mp4|webm|mov|m4v)(?:[?#][^"]*)?)"[^>]*>[^<]*<\/a><\/p>/gi,
-    (_, url) => {
-      return `<div class="embed-card embed-video">
-        <video src="${withMediaFragment(url)}" controls preload="metadata" playsinline></video>
-      </div>`;
-    },
-  );
-
-  // 単独行の動画URL（リンク化されていない場合）
-  html = html.replace(
-    /<p>((?:https?:\/\/|\/)[^\s<]+\.(mp4|webm|mov|m4v)(?:[?#][^\s<]*)?)<\/p>/gi,
-    (_, url) => {
-      return `<div class="embed-card embed-video">
-        <video src="${withMediaFragment(url)}" controls preload="metadata" playsinline></video>
-      </div>`;
-    },
-  );
-
-  // リスト内の動画埋め込み
-  html = html.replace(
-    /<li><a href="([^"]+\.(mp4|webm|mov|m4v)(?:[?#][^"]*)?)"[^>]*>[^<]*<\/a>/gi,
-    (_, url) => {
-      return `<li><div class="embed-card embed-video">
-        <video src="${withMediaFragment(url)}" controls preload="metadata" playsinline></video>
-      </div>`;
-    },
-  );
-
-  // Gist の埋め込み
-  // https://gist.github.com/username/gist_id
-  html = html.replace(
-    /<p><a href="(https?:\/\/gist\.github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9]+))[^"]*">[^<]*<\/a><\/p>/g,
-    (_, url) => {
-      return `<div class="embed-card embed-gist">
-        <script src="${url}.js"></script>
-      </div>`;
-    },
-  );
-
-  // 単独行のGist URL
-  html = html.replace(
-    /<p>(https?:\/\/gist\.github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9]+))<\/p>/g,
-    (_, url) => {
-      return `<div class="embed-card embed-gist">
-        <script src="${url}.js"></script>
-      </div>`;
-    },
-  );
-
-  // Amazon リンクをカードに変換（商品名を表示）
-  // https://www.amazon.co.jp/dp/ASIN または https://www.amazon.co.jp/gp/product/ASIN
-  // https://amzn.asia/d/xxx または https://amzn.to/xxx（短縮URL）
-  const extractAsin = (url: string): string | null => {
-    const match = url.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/);
-    return match ? match[2] : null;
-  };
-
-  const amazonCardHtml = (url: string, linkText: string) => {
-    const asin = extractAsin(url);
-    if (asin) {
-      const imageUrl = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL160_.jpg`;
-      return `<div class="embed-card embed-amazon">
+const amazonCardHtml = (url: string, linkText: string) => {
+  const asin = extractAsin(url);
+  if (asin) {
+    const imageUrl = `https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SL160_.jpg`;
+    return `<div class="embed-card embed-amazon">
         <a href="${url}" target="_blank" rel="noopener noreferrer">
           <div class="amazon-card-image">
             <img src="${imageUrl}" alt="${linkText}" loading="lazy" referrerpolicy="no-referrer">
@@ -430,45 +297,46 @@ function convertEmbeds(html: string): string {
           </div>
         </a>
       </div>`;
-    }
-    return `<div class="embed-card embed-amazon">
+  }
+  return `<div class="embed-card embed-amazon">
         <a href="${url}" target="_blank" rel="noopener noreferrer">
           <img src="https://icons.duckduckgo.com/ip3/www.amazon.co.jp.ico" alt="" class="amazon-icon" referrerpolicy="no-referrer">
           <span class="amazon-card-title">${linkText}</span>
         </a>
       </div>`;
-  };
+};
 
-  // 通常のAmazon URL
-  html = html.replace(
-    /<p><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a><\/p>/g,
-    (_, url, __, ___, ____, linkText) => amazonCardHtml(url, linkText),
-  );
+/**
+ * 埋め込みハンドラ定義。
+ *
+ * 埋め込み種別ごとに 1 エントリ。各エントリは
+ *  - buildCard: マッチした正規表現グループ（groups[i]）と prefix からカードHTMLを生成
+ *  - pLink  : `<p><a href="URL">text</a></p>` 形態にマッチする正規表現
+ *  - pPlain : `<p>URL</p>`（リンク化されていない生URL）形態
+ *  - liLink : `<li><a href="URL">text</a>` 形態
+ * を持つ。存在しない形態は省略する。
+ *
+ * 新しい埋め込みを 1 種類追加したいときは、このリストに 1 エントリ足すだけでよい。
+ *
+ * NOTE: buildCard が参照するグループ番号は、その種別が持つ全形態で一致するよう
+ *       各正規表現を組んである（例: X は username=groups[3] / tweetId=groups[4] が
+ *       pLink/pPlain/liLink 共通）。ラッパ部分の微妙な差異（動画/Amazon は href の後に
+ *       属性を許す `"[^>]*>`、X/YouTube/Gist は `[^"]*">[^<]*` 等）は挙動維持を優先し、
+ *       共通化せず種別ごとの正規表現データとして保持している。
+ */
+interface EmbedHandler {
+  buildCard: (groups: string[], prefix: string) => string;
+  pLink?: RegExp;
+  pPlain?: RegExp;
+  liLink?: RegExp;
+}
 
-  // 短縮URL（amzn.asia, amzn.to）
-  html = html.replace(
-    /<p><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a><\/p>/g,
-    (_, url, __, linkText) => amazonCardHtml(url, linkText),
-  );
-
-  // リスト内のAmazon埋め込み（通常URL）
-  html = html.replace(
-    /<li><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a>/g,
-    (_, url, __, ___, ____, linkText) => `<li>${amazonCardHtml(url, linkText)}`,
-  );
-
-  // リスト内のAmazon埋め込み（短縮URL）
-  html = html.replace(
-    /<li><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a>/g,
-    (_, url, __, linkText) => `<li>${amazonCardHtml(url, linkText)}`,
-  );
-
-  // リスト内のX/Twitter埋め込み（リンクのみを置換）
-  html = html.replace(
-    /<li><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a>/g,
-    (_, _url, _domain, username, tweetId) => {
-      const twitterUrl = `https://twitter.com/${username}/status/${tweetId}`;
-      return `<li><div class="embed-card embed-twitter">
+const embedHandlers: EmbedHandler[] = [
+  // X (Twitter) — x.com/twitter.com のどちらでも twitter.com に正規化して埋め込む
+  {
+    buildCard: (g, prefix) => {
+      const twitterUrl = `https://twitter.com/${g[3]}/status/${g[4]}`;
+      return `${prefix}<div class="embed-card embed-twitter">
         <blockquote class="twitter-tweet" data-dnt="true">
           <div class="twitter-loading">
             <div class="twitter-loading-spinner"></div>
@@ -478,28 +346,107 @@ function convertEmbeds(html: string): string {
         </blockquote>
       </div>`;
     },
-  );
+    pLink:
+      /<p><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a><\/p>/g,
+    pPlain:
+      /<p>(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+)[^\s<]*)<\/p>/g,
+    liLink:
+      /<li><a href="(https?:\/\/(x\.com|twitter\.com)\/([^/]+)\/status\/(\d+))[^"]*">[^<]*<\/a>/g,
+  },
+  // YouTube（youtube.com/watch?v=）— videoId は groups[3]
+  {
+    buildCard: (g, prefix) =>
+      `${prefix}<div class="embed-card embed-youtube">
+        <iframe src="https://www.youtube.com/embed/${g[3]}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`,
+    pLink:
+      /<p><a href="(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a><\/p>/g,
+    pPlain:
+      /<p>(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)[^\s<]*)<\/p>/g,
+    liLink:
+      /<li><a href="(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
+  },
+  // YouTube（youtu.be 短縮）— videoId は groups[2]
+  {
+    buildCard: (g, prefix) =>
+      `${prefix}<div class="embed-card embed-youtube">
+        <iframe src="https://www.youtube.com/embed/${g[2]}" frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>`,
+    pLink:
+      /<p><a href="(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a><\/p>/g,
+    pPlain: /<p>(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+)[^\s<]*)<\/p>/g,
+    liLink:
+      /<li><a href="(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
+  },
+  // 動画ファイル（mp4/webm/mov/m4v）— url は groups[1]
+  // pPlain のみ `/` 始まりの相対URLも許容する専用パターン
+  {
+    buildCard: (g, prefix) =>
+      `${prefix}<div class="embed-card embed-video">
+        <video src="${withMediaFragment(g[1])}" controls preload="metadata" playsinline></video>
+      </div>`,
+    pLink:
+      /<p><a href="([^"]+\.(mp4|webm|mov|m4v)(?:[?#][^"]*)?)"[^>]*>[^<]*<\/a><\/p>/gi,
+    pPlain:
+      /<p>((?:https?:\/\/|\/)[^\s<]+\.(mp4|webm|mov|m4v)(?:[?#][^\s<]*)?)<\/p>/gi,
+    liLink:
+      /<li><a href="([^"]+\.(mp4|webm|mov|m4v)(?:[?#][^"]*)?)"[^>]*>[^<]*<\/a>/gi,
+  },
+  // Gist — url は groups[1]。pPlain は末尾 `[^\s<]*` を持たない（単独行の完全一致）
+  {
+    buildCard: (g, prefix) =>
+      `${prefix}<div class="embed-card embed-gist">
+        <script src="${g[1]}.js"></script>
+      </div>`,
+    pLink:
+      /<p><a href="(https?:\/\/gist\.github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9]+))[^"]*">[^<]*<\/a><\/p>/g,
+    pPlain:
+      /<p>(https?:\/\/gist\.github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9]+))<\/p>/g,
+  },
+  // Amazon（通常URL: /dp/ASIN, /gp/product/ASIN）— url=groups[1], linkText=groups[5]
+  {
+    buildCard: (g, prefix) => `${prefix}${amazonCardHtml(g[1], g[5])}`,
+    pLink:
+      /<p><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a><\/p>/g,
+    liLink:
+      /<li><a href="(https?:\/\/(www\.)?amazon\.(co\.jp|com)[^"]*\/(dp|gp\/product)\/[A-Z0-9]{10}[^"]*)"[^>]*>([^<]+)<\/a>/g,
+  },
+  // Amazon（短縮URL: amzn.asia, amzn.to）— url=groups[1], linkText=groups[3]
+  {
+    buildCard: (g, prefix) => `${prefix}${amazonCardHtml(g[1], g[3])}`,
+    pLink:
+      /<p><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a><\/p>/g,
+    liLink:
+      /<li><a href="(https?:\/\/amzn\.(asia|to)\/[^"]+)"[^>]*>([^<]+)<\/a>/g,
+  },
+];
 
-  // リスト内のYouTube埋め込み（youtube.com/watch?v=）
-  html = html.replace(
-    /<li><a href="(https?:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
-    (_, __, ___, videoId) => {
-      return `<li><div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
+// 出現形態と、その形態で置換結果に前置する prefix（リスト内は `<li>` を残す）
+const EMBED_FORMS: Array<{
+  key: "pLink" | "pPlain" | "liLink";
+  prefix: string;
+}> = [
+  { key: "pLink", prefix: "" },
+  { key: "pPlain", prefix: "" },
+  { key: "liLink", prefix: "<li>" },
+];
 
-  // リスト内のYouTube埋め込み（youtu.be/）
-  html = html.replace(
-    /<li><a href="(https?:\/\/youtu\.be\/([a-zA-Z0-9_-]+))[^"]*">[^<]*<\/a>/g,
-    (_, __, videoId) => {
-      return `<li><div class="embed-card embed-youtube">
-        <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen loading="lazy"></iframe>
-      </div>`;
-    },
-  );
-
+/**
+ * URLを埋め込みカードに変換
+ *
+ * ハンドラ定義（embedHandlers）×出現形態（EMBED_FORMS）を走査し、
+ * 各正規表現を buildCard で置換する。
+ */
+function convertEmbeds(html: string): string {
+  for (const handler of embedHandlers) {
+    for (const { key, prefix } of EMBED_FORMS) {
+      const regex = handler[key];
+      if (!regex) continue;
+      html = html.replace(regex, (...groups: string[]) =>
+        handler.buildCard(groups, prefix),
+      );
+    }
+  }
   return html;
 }
 
