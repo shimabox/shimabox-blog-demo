@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import {
   getAdjacentPosts,
   getPost,
@@ -17,6 +18,53 @@ import { ServerError } from "./views/ServerError";
 const app = new Hono<{ Bindings: Env }>();
 
 const PER_PAGE = 10;
+
+// ========================================
+// セキュリティヘッダ（全レスポンス共通）
+// ========================================
+// hono@4.11 の secureHeaders() の挙動（デフォルト値含む）を全項目明示する。
+// 曖昧なデフォルトに頼らず、このブログが実際に読み込む外部リソース
+// （記事ページのみ: highlight.js(cdnjs) と Twitter widgets.js、本文中の
+// gist.github.com 埋め込みスクリプト、外部サイトの<img>から参照される
+// OGP・記事内画像）に合わせて値を選択している。
+// CSPは本適用しない（highlight.js の onload 実行やテーマ初期化・Twitter/gist
+// のインラインおよびクロスオリジンスクリプトがあり、安全に固めるには段階的な
+// Report-Only 導入が必要なため）。
+app.use(
+  "*",
+  secureHeaders({
+    // ---- 必須の4ヘッダ ----
+    xContentTypeOptions: true, // "X-Content-Type-Options: nosniff"（デフォルトと同値だが明示）
+    referrerPolicy: "strict-origin-when-cross-origin", // デフォルトの "no-referrer" を上書き
+    xFrameOptions: "DENY", // デフォルトの "SAMEORIGIN" を上書き
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+    }, // "camera=(), microphone=(), geolocation=()"
+
+    // ---- 明示的に無効化 ----
+    // OGP画像・記事内画像はSNSカードやソーシャルブックマーク等、外部サイトの
+    // <img> から直接参照されるため、CORPを付けると壊れる。
+    crossOriginResourcePolicy: false,
+    // highlight.js(cdnjs) / Twitter widgets.js / gist.github.com の
+    // <script>埋め込みはCORP無しのクロスオリジンリソースのため、COEPは無効のまま維持。
+    crossOriginEmbedderPolicy: false,
+
+    // ---- hono@4.11 のデフォルトをそのまま明示（意図して有効化） ----
+    crossOriginOpenerPolicy: true, // "Cross-Origin-Opener-Policy: same-origin"
+    originAgentCluster: true, // "Origin-Agent-Cluster: ?1"
+    strictTransportSecurity: true, // "Strict-Transport-Security: max-age=15552000; includeSubDomains"
+    // Layout.tsx の記事ページには <link rel="dns-prefetch"> / <link rel="preconnect">
+    // （platform.twitter.com・cdnjs.cloudflare.com へのLighthouse対策ヒント）があるため、
+    // "X-DNS-Prefetch-Control: off" を送るとこれを殺してしまう。ヘッダ自体を付けない。
+    xDnsPrefetchControl: false,
+    xDownloadOptions: true, // "X-Download-Options: noopen"
+    xPermittedCrossDomainPolicies: true, // "X-Permitted-Cross-Domain-Policies: none"
+    xXssProtection: true, // "X-XSS-Protection: 0"
+    removePoweredBy: true, // X-Powered-By を削除
+  }),
+);
 
 // ========================================
 // 静的ファイル（最初に定義）

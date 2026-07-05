@@ -462,3 +462,45 @@ describe("Honoアプリ統合テスト", () => {
     });
   });
 });
+
+describe("セキュリティヘッダ", () => {
+  const files = {
+    "posts/2025-06-15-test-post.md": createRawPost({
+      title: "テスト記事",
+      slug: "test-post",
+      date: "2025-06-15",
+    }),
+    "images/sample.png": "0123456789".repeat(20),
+  };
+
+  it("HTMLレスポンスに必須ヘッダが付与される", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Permissions-Policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(res.headers.get("Cross-Origin-Resource-Policy")).toBeNull();
+  });
+
+  it("画像レスポンスに必須ヘッダが付与され、既存のCache-Controlも維持される", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Permissions-Policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(res.headers.get("Cross-Origin-Resource-Policy")).toBeNull();
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000");
+  });
+});
