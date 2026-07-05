@@ -102,8 +102,13 @@ export async function getPost(env: Env, slug: string): Promise<Post | null> {
 
   const text = await file.text();
   const post = await parseMarkdown(text);
-  // キャッシュに保存（TTLなし = 無期限）
-  await env.CACHE.put(cacheKey, JSON.stringify(post));
+  // GitHub埋め込みカードの取得に1件でも失敗していたら、簡略カードのまま
+  // 無期限キャッシュされてしまわないよう短命TTLにする（成功記事やGitHub埋め込みが
+  // 無い記事は従来通り無期限）
+  const cacheOptions = post.hadEmbedFailure
+    ? { expirationTtl: 3600 }
+    : undefined;
+  await env.CACHE.put(cacheKey, JSON.stringify(post), cacheOptions);
   return post;
 }
 

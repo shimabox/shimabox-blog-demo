@@ -359,3 +359,73 @@ describe("invalidateCache", () => {
     expect(env._kvStore.size).toBe(0);
   });
 });
+
+describe("getPost - GitHub埋め込み失敗時のキャッシュTTL", () => {
+  it("GitHub API取得に失敗した記事はexpirationTtl: 3600でキャッシュされる", async () => {
+    const raw = `---
+title: GitHub埋め込み失敗テスト
+slug: gh-fail
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+    const env = createMockEnv({
+      "posts/2025-01-01-gh-fail.md": raw,
+    });
+
+    await getPost(env, "gh-fail");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(([key]) => key === "posts:gh-fail");
+    expect(call?.[2]).toEqual({ expirationTtl: 3600 });
+  });
+
+  it("GitHub URLが無い記事はTTLなしでキャッシュされる", async () => {
+    const env = createMockEnv({
+      "posts/2025-01-01-normal.md": createRawPost({ slug: "normal" }),
+    });
+
+    await getPost(env, "normal");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(([key]) => key === "posts:normal");
+    expect(call?.[2]).toBeUndefined();
+  });
+
+  it("GitHub API取得に成功した記事はTTLなしでキャッシュされる", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            description: "desc",
+            stargazers_count: 1,
+            language: "TypeScript",
+          }),
+      }),
+    );
+
+    const raw = `---
+title: GitHub埋め込み成功テスト
+slug: gh-success
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+    const env = createMockEnv({
+      "posts/2025-01-01-gh-success.md": raw,
+    });
+
+    await getPost(env, "gh-success");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(
+      ([key]) => key === "posts:gh-success",
+    );
+    expect(call?.[2]).toBeUndefined();
+  });
+});

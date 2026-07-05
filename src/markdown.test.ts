@@ -693,3 +693,67 @@ tags: []
     expect(post.content).toContain('alt="alt text"');
   });
 });
+
+// ============================================================
+// parseMarkdown - GitHub埋め込み取得失敗の検知（hadEmbedFailure）
+// ============================================================
+describe("parseMarkdown - GitHub埋め込み取得失敗の検知", () => {
+  it("GitHub API呼び出しが失敗するとhadEmbedFailure: trueを返す", async () => {
+    // ファイル先頭のデフォルトモックは ok: false を返すため、失敗として扱われる
+    const raw = `---
+title: GitHub埋め込み失敗テスト
+slug: github-embed-fail
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+
+    const post = await parseMarkdown(raw);
+    expect(post.hadEmbedFailure).toBe(true);
+  });
+
+  it("GitHub API呼び出しが成功する場合はhadEmbedFailureが立たない", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            description: "テストリポジトリ",
+            stargazers_count: 42,
+            language: "TypeScript",
+          }),
+      }),
+    );
+
+    const raw = `---
+title: GitHub埋め込み成功テスト
+slug: github-embed-success
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+
+    const post = await parseMarkdown(raw);
+    expect(post.hadEmbedFailure).toBeFalsy();
+    expect(post.content).toContain("テストリポジトリ");
+  });
+
+  it("GitHub URLが無い記事ではhadEmbedFailureが立たない", async () => {
+    const raw = `---
+title: GitHub埋め込みなしテスト
+slug: no-github-embed
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+本文だけの記事です。`;
+
+    const post = await parseMarkdown(raw);
+    expect(post.hadEmbedFailure).toBeFalsy();
+  });
+});
