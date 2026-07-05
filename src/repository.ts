@@ -2,6 +2,45 @@ import { parseFrontmatter, parseMarkdown } from "./markdown";
 import type { Env, Post, PostMeta } from "./types";
 
 const CACHE_KEY = "posts:index";
+// slug → R2キー の索引。posts/ と pages/ の両方が対象。
+const SLUG_INDEX_KEY = "posts:slugIndex";
+// 存在しない slug のネガティブキャッシュTTL（秒）
+const NOT_FOUND_TTL = 300;
+
+/**
+ * slug → R2キー の索引を取得（無ければ構築してキャッシュ）
+ *
+ * posts/ と pages/ の全オブジェクトの frontmatter を読んで slug を解決する。
+ * slug は frontmatter が正であり、ファイル名からは推測しない。
+ * `posts:index`（listPosts）は posts/ のみが対象なのに対し、こちらは
+ * pages/ も含める必要があるため索引は別建てで構築する。
+ */
+async function getSlugIndex(env: Env): Promise<Record<string, string>> {
+  const cached = await env.CACHE.get<Record<string, string>>(
+    SLUG_INDEX_KEY,
+    "json",
+  );
+  if (cached) return cached;
+
+  const index: Record<string, string> = {};
+  for (const prefix of ["posts/", "pages/"]) {
+    const list = await env.BUCKET.list({ prefix });
+    for (const obj of list.objects) {
+      const file = await env.BUCKET.get(obj.key);
+      if (!file) continue;
+      const text = await file.text();
+      const meta = parseFrontmatter(text);
+      if (meta.slug) {
+        index[meta.slug] = obj.key;
+      }
+    }
+  }
+
+  // キャッシュに保存（TTLなし = 無期限）
+  await env.CACHE.put(SLUG_INDEX_KEY, JSON.stringify(index));
+
+  return index;
+}
 
 export async function listPosts(env: Env): Promise<PostMeta[]> {
   // キャッシュ確認
@@ -37,37 +76,35 @@ export async function getPost(env: Env, slug: string): Promise<Post | null> {
   const cached = await env.CACHE.get<Post>(cacheKey, "json");
   if (cached) return cached;
 
-  // postsディレクトリを検索
-  let list = await env.BUCKET.list({ prefix: "posts/" });
-  for (const obj of list.objects) {
-    const file = await env.BUCKET.get(obj.key);
-    if (!file) continue;
-    const text = await file.text();
-    const meta = parseFrontmatter(text);
-    if (meta.slug === slug) {
-      const post = await parseMarkdown(text);
-      // キャッシュに保存（TTLなし = 無期限）
-      await env.CACHE.put(cacheKey, JSON.stringify(post));
-      return post;
-    }
+  // ネガティブキャッシュ（存在しない slug への総当たりスキャンを防ぐ）
+  const notFoundKey = `posts:404:${slug}`;
+  const negativeHit = await env.CACHE.get(notFoundKey, "json");
+  if (negativeHit !== null) return null;
+
+  // slug → R2キー の索引を引く
+  const index = await getSlugIndex(env);
+  const key = index[slug];
+  if (!key) {
+    // 索引に無い = 存在しない。短命のネガティブキャッシュを書く
+    await env.CACHE.put(notFoundKey, JSON.stringify(true), {
+      expirationTtl: NOT_FOUND_TTL,
+    });
+    return null;
   }
 
-  // pagesディレクトリも検索（固定ページ用）
-  list = await env.BUCKET.list({ prefix: "pages/" });
-  for (const obj of list.objects) {
-    const file = await env.BUCKET.get(obj.key);
-    if (!file) continue;
-    const text = await file.text();
-    const meta = parseFrontmatter(text);
-    if (meta.slug === slug) {
-      const post = await parseMarkdown(text);
-      // キャッシュに保存（TTLなし = 無期限）
-      await env.CACHE.put(cacheKey, JSON.stringify(post));
-      return post;
-    }
+  // 該当キーのみを取得（全件スキャンしない）
+  const file = await env.BUCKET.get(key);
+  if (!file) {
+    // 索引はあるが実体が無い（削除済み等）。索引を破棄して次回再構築させる
+    await env.CACHE.delete(SLUG_INDEX_KEY);
+    return null;
   }
 
-  return null;
+  const text = await file.text();
+  const post = await parseMarkdown(text);
+  // キャッシュに保存（TTLなし = 無期限）
+  await env.CACHE.put(cacheKey, JSON.stringify(post));
+  return post;
 }
 
 export async function getPostsByCategory(
@@ -102,8 +139,12 @@ export async function invalidateCache(env: Env, slug?: string): Promise<void> {
     await env.CACHE.delete(`posts:${slug}`);
     // 一覧も更新が必要なので削除
     await env.CACHE.delete(CACHE_KEY);
+    // slug→R2キー索引（記事の追加・slug変更・削除で古くなる）
+    await env.CACHE.delete(SLUG_INDEX_KEY);
+    // 該当slugのネガティブキャッシュ（新規公開時に残っていると誤って404になる）
+    await env.CACHE.delete(`posts:404:${slug}`);
   } else {
-    // 全キャッシュを削除
+    // 全キャッシュを削除（posts: prefix で slugIndex・404:* もカバーされる）
     await env.CACHE.delete(CACHE_KEY);
     const list = await env.CACHE.list({ prefix: "posts:" });
     for (const key of list.keys) {
