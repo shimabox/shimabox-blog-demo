@@ -1,5 +1,6 @@
 import type { Context } from "hono";
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
 import {
   getAdjacentPosts,
   getPost,
@@ -17,6 +18,53 @@ import { ServerError } from "./views/ServerError";
 const app = new Hono<{ Bindings: Env }>();
 
 const PER_PAGE = 10;
+
+// ========================================
+// セキュリティヘッダ（全レスポンス共通）
+// ========================================
+// hono@4.11 の secureHeaders() の挙動（デフォルト値含む）を全項目明示する。
+// 曖昧なデフォルトに頼らず、このブログが実際に読み込む外部リソース
+// （記事ページのみ: highlight.js(cdnjs) と Twitter widgets.js、本文中の
+// gist.github.com 埋め込みスクリプト、外部サイトの<img>から参照される
+// OGP・記事内画像）に合わせて値を選択している。
+// CSPは本適用しない（highlight.js の onload 実行やテーマ初期化・Twitter/gist
+// のインラインおよびクロスオリジンスクリプトがあり、安全に固めるには段階的な
+// Report-Only 導入が必要なため）。
+app.use(
+  "*",
+  secureHeaders({
+    // ---- 必須の4ヘッダ ----
+    xContentTypeOptions: true, // "X-Content-Type-Options: nosniff"（デフォルトと同値だが明示）
+    referrerPolicy: "strict-origin-when-cross-origin", // デフォルトの "no-referrer" を上書き
+    xFrameOptions: "DENY", // デフォルトの "SAMEORIGIN" を上書き
+    permissionsPolicy: {
+      camera: [],
+      microphone: [],
+      geolocation: [],
+    }, // "camera=(), microphone=(), geolocation=()"
+
+    // ---- 明示的に無効化 ----
+    // OGP画像・記事内画像はSNSカードやソーシャルブックマーク等、外部サイトの
+    // <img> から直接参照されるため、CORPを付けると壊れる。
+    crossOriginResourcePolicy: false,
+    // highlight.js(cdnjs) / Twitter widgets.js / gist.github.com の
+    // <script>埋め込みはCORP無しのクロスオリジンリソースのため、COEPは無効のまま維持。
+    crossOriginEmbedderPolicy: false,
+
+    // ---- hono@4.11 のデフォルトをそのまま明示（意図して有効化） ----
+    crossOriginOpenerPolicy: true, // "Cross-Origin-Opener-Policy: same-origin"
+    originAgentCluster: true, // "Origin-Agent-Cluster: ?1"
+    strictTransportSecurity: true, // "Strict-Transport-Security: max-age=15552000; includeSubDomains"
+    // Layout.tsx の記事ページには <link rel="dns-prefetch"> / <link rel="preconnect">
+    // （platform.twitter.com・cdnjs.cloudflare.com へのLighthouse対策ヒント）があるため、
+    // "X-DNS-Prefetch-Control: off" を送るとこれを殺してしまう。ヘッダ自体を付けない。
+    xDnsPrefetchControl: false,
+    xDownloadOptions: true, // "X-Download-Options: noopen"
+    xPermittedCrossDomainPolicies: true, // "X-Permitted-Cross-Domain-Policies: none"
+    xXssProtection: true, // "X-XSS-Protection: 0"
+    removePoweredBy: true, // X-Powered-By を削除
+  }),
+);
 
 // ========================================
 // 静的ファイル（最初に定義）
@@ -37,23 +85,27 @@ app.get("/images/:path{.+}", async (c) => {
   const rangeHeader = c.req.header("Range");
 
   if (rangeHeader) {
-    return serveRange(c, key, contentType, rangeHeader);
+    return serveRange(c, key, path, contentType, rangeHeader);
   }
 
   const object = await c.env.BUCKET.get(key);
   if (!object) return c.html(<NotFound env={c.env} />, 404);
 
-  return c.body(object.body as ReadableStream, 200, {
-    "Content-Type": contentType,
-    "Content-Length": String(object.size),
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000",
-  });
+  return c.body(
+    object.body as ReadableStream,
+    200,
+    buildImageHeaders(path, contentType, {
+      "Content-Length": String(object.size),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=31536000",
+    }),
+  );
 });
 
 async function serveRange(
   c: Context<{ Bindings: Env }>,
   key: string,
+  path: string,
   contentType: string,
   rangeHeader: string,
 ): Promise<Response> {
@@ -102,13 +154,16 @@ async function serveRange(
   });
   if (!object) return c.html(<NotFound env={c.env} />, 404);
 
-  return c.body(object.body as ReadableStream, 206, {
-    "Content-Type": contentType,
-    "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-    "Content-Length": String(length),
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000",
-  });
+  return c.body(
+    object.body as ReadableStream,
+    206,
+    buildImageHeaders(path, contentType, {
+      "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+      "Content-Length": String(length),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=31536000",
+    }),
+  );
 }
 
 // OGP画像（静的ファイル配信）
@@ -287,10 +342,8 @@ app.get("/favicon.ico", async (c) => {
 // POST /api/invalidate         → 全キャッシュ削除
 // POST /api/invalidate?slug=xx → 特定記事のキャッシュ削除
 app.post("/api/invalidate", async (c) => {
-  const key = c.req.header("X-Admin-Key");
-
   // ADMIN_KEYが設定されていない、または提供されたキーが一致しない場合は拒否
-  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
+  if (!(await verifyAdminKey(c))) {
     return c.text("Unauthorized", 401);
   }
 
@@ -303,9 +356,7 @@ app.post("/api/invalidate", async (c) => {
 // GET /api/r2-list           → 全オブジェクト一覧
 // GET /api/r2-list?prefix=xx → 指定prefixのオブジェクト一覧
 app.get("/api/r2-list", async (c) => {
-  const key = c.req.header("X-Admin-Key");
-
-  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
+  if (!(await verifyAdminKey(c))) {
     return c.text("Unauthorized", 401);
   }
 
@@ -363,6 +414,29 @@ function getContentType(path: string): string {
   return types[ext || ""] || "application/octet-stream";
 }
 
+// SVGは<script>を内包できるため、直接開かれた場合に備えてサンドボックス化する
+// （<img src="...svg">での表示には影響しない。CSP sandboxはドキュメントとして開いた場合のみ効く）
+function isSvgPath(path: string): boolean {
+  return /\.svg$/i.test(path);
+}
+
+function buildImageHeaders(
+  path: string,
+  contentType: string,
+  extraHeaders: Record<string, string>,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    ...extraHeaders,
+  };
+
+  if (isSvgPath(path)) {
+    headers["Content-Security-Policy"] = "sandbox";
+  }
+
+  return headers;
+}
+
 async function serveDefaultOgp(c: Context<{ Bindings: Env }>) {
   const defaultOgp = await c.env.BUCKET.get("images/ogp/default.png");
   if (!defaultOgp) return c.text("Not Found", 404);
@@ -370,6 +444,36 @@ async function serveDefaultOgp(c: Context<{ Bindings: Env }>) {
     "Content-Type": "image/png",
     "Cache-Control": "public, max-age=86400",
   });
+}
+
+// 文字列をSHA-256でハッシュ化し16進文字列で返す
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// 管理API（/api/invalidate, /api/r2-list）の認証
+// - ADMIN_KEY未設定・キー未提供の場合は必ず拒否（fail-closed）
+// - 生の文字列比較ではなくSHA-256ハッシュ同士を比較する
+//   （crypto.subtle.timingSafeEqualはCloudflare Workers固有APIでvitestのnode環境に
+//    存在しないため使用しない。ハッシュ化後は仮に比較の途中経過がタイミングとして
+//    漏れてもハッシュ値のプレフィックスしか漏れず、原像である秘密鍵は復元できない
+//    ため通常の等値比較で問題ない）
+async function verifyAdminKey(c: Context<{ Bindings: Env }>): Promise<boolean> {
+  const provided = c.req.header("X-Admin-Key");
+  const expected = c.env.ADMIN_KEY;
+
+  if (!expected || !provided) return false;
+
+  const [providedHash, expectedHash] = await Promise.all([
+    sha256Hex(provided),
+    sha256Hex(expected),
+  ]);
+
+  return providedHash === expectedHash;
 }
 
 export default app;

@@ -1,5 +1,13 @@
 import type { Env, PostMeta } from "./types";
 
+/**
+ * CDATAセクション用のエスケープ。`]]>` を `]]]]><![CDATA[>` に置換し、
+ * テキスト中の `]]>` によるCDATAの早期終了（XML注入）を防ぐ。
+ */
+function escapeCdata(text: string): string {
+  return text.replace(/]]>/g, "]]]]><![CDATA[>");
+}
+
 export function generateRssFeed(posts: PostMeta[], env: Env): string {
   const items = posts
     .map((post) => {
@@ -11,12 +19,12 @@ export function generateRssFeed(posts: PostMeta[], env: Env): string {
 
       return `
     <item>
-      <title><![CDATA[${post.title}]]></title>
+      <title><![CDATA[${escapeCdata(post.title)}]]></title>
       <link>${url}</link>
       <guid>${url}</guid>
       <pubDate>${date.toUTCString()}</pubDate>
-      <description><![CDATA[${post.excerpt || ""}]]></description>
-      ${post.categories.map((cat) => `<category><![CDATA[${cat}]]></category>`).join("\n      ")}
+      <description><![CDATA[${escapeCdata(post.excerpt || "")}]]></description>
+      ${post.categories.map((cat) => `<category><![CDATA[${escapeCdata(cat)}]]></category>`).join("\n      ")}
     </item>`;
     })
     .join("");

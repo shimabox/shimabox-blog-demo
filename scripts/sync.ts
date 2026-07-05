@@ -12,9 +12,15 @@
  * 環境変数:
  *   ADMIN_KEY  - --delete時に必須（/api/r2-list認証用）
  *   SITE_URL   - --delete時に必須（/api/r2-list認証用）
+ *
+ * シェルインジェクション対策:
+ *   wrangler コマンドの実行には execFileSync を使用し、シェルを経由せず
+ *   argv 配列としてそのまま渡している（shell: false）。そのため引用符や
+ *   `;` `|` `` ` `` などの特殊文字を含むパス（日本語ファイル名を含む）も
+ *   構造的に安全に扱え、危険文字のブラックリスト検査は不要。
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -34,15 +40,8 @@ const deletePaths =
   deletePathsIndex !== -1 ? args.slice(deletePathsIndex + 1) : [];
 const targetSlug = args.find((arg) => !arg.startsWith("-"));
 
-// シェルインジェクション対策: 危険な文字を含むパスをチェック
-const DANGEROUS_CHARS = /[;|$`&<>(){}\\]/;
-
 // 同期対象外のファイル
 const IGNORE_FILES = [".DS_Store", "Thumbs.db", ".gitkeep"];
-
-function hasDangerousChars(path: string): boolean {
-  return DANGEROUS_CHARS.test(path);
-}
 
 function shouldIgnore(filename: string): boolean {
   return IGNORE_FILES.includes(filename);
@@ -65,16 +64,20 @@ function syncFile(localPath: string, remotePath: string): boolean {
     return false;
   }
 
-  // シェルインジェクション対策
-  if (hasDangerousChars(localPath) || hasDangerousChars(remotePath)) {
-    console.error(`⚠️  Skipping file with dangerous characters: ${remotePath}`);
-    return false;
-  }
-
   try {
-    execSync(
-      `npx wrangler r2 object put "${BUCKET}/${remotePath}" --file="${localPath}" --remote`,
-      { stdio: "pipe" },
+    execFileSync(
+      "npx",
+      [
+        "wrangler",
+        "r2",
+        "object",
+        "put",
+        `${BUCKET}/${remotePath}`,
+        "--file",
+        localPath,
+        "--remote",
+      ],
+      { stdio: "pipe", shell: false },
     );
     console.log(`✅ ${remotePath}`);
     return true;
@@ -85,16 +88,18 @@ function syncFile(localPath: string, remotePath: string): boolean {
 }
 
 function deleteFile(remotePath: string): boolean {
-  // シェルインジェクション対策
-  if (hasDangerousChars(remotePath)) {
-    console.error(`⚠️  Skipping file with dangerous characters: ${remotePath}`);
-    return false;
-  }
-
   try {
-    execSync(
-      `npx wrangler r2 object delete "${BUCKET}/${remotePath}" --remote`,
-      { stdio: "pipe" },
+    execFileSync(
+      "npx",
+      [
+        "wrangler",
+        "r2",
+        "object",
+        "delete",
+        `${BUCKET}/${remotePath}`,
+        "--remote",
+      ],
+      { stdio: "pipe", shell: false },
     );
     console.log(`🗑️  Deleted: ${remotePath}`);
     return true;

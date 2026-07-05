@@ -462,3 +462,162 @@ describe("Honoアプリ統合テスト", () => {
     });
   });
 });
+
+describe("セキュリティヘッダ", () => {
+  const files = {
+    "posts/2025-06-15-test-post.md": createRawPost({
+      title: "テスト記事",
+      slug: "test-post",
+      date: "2025-06-15",
+    }),
+    "images/sample.png": "0123456789".repeat(20),
+  };
+
+  it("HTMLレスポンスに必須ヘッダが付与される", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Permissions-Policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(res.headers.get("Cross-Origin-Resource-Policy")).toBeNull();
+  });
+
+  it("画像レスポンスに必須ヘッダが付与され、既存のCache-Controlも維持される", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Permissions-Policy")).toBe(
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(res.headers.get("Cross-Origin-Resource-Policy")).toBeNull();
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000");
+  });
+});
+
+describe("SVG配信のsandbox", () => {
+  const files = {
+    "images/icon.svg": "<svg><script>alert(1)</script></svg>",
+    "images/sample.png": "0123456789".repeat(20),
+  };
+
+  it("svgにはContent-Security-Policy: sandboxヘッダが付く", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/icon.svg", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("拡張子が大文字のSVGにもContent-Security-Policy: sandboxヘッダが付く", async () => {
+    const env = createMockBindings({
+      "images/icon.SVG": "<svg><script>alert(1)</script></svg>",
+    });
+    const res = await request("/images/icon.SVG", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("pngにはContent-Security-Policyヘッダが付かない", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Content-Security-Policy")).toBeNull();
+  });
+
+  it("Rangeリクエストのsvgにもsandboxヘッダが付く", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/icon.svg", env, {
+      headers: { Range: "bytes=0-9" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("Rangeリクエストのpngにはsandboxヘッダが付かない", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env, {
+      headers: { Range: "bytes=0-9" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("Content-Security-Policy")).toBeNull();
+  });
+});
+
+describe("管理API認証の強化", () => {
+  const files: Record<string, string> = {
+    "posts/2025-06-15-test-post.md": createRawPost(),
+  };
+
+  it("正しいAdmin Keyで200を返す（/api/invalidate）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("正しいAdmin Keyで200を返す（/api/r2-list）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/r2-list", env, {
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("誤ったAdmin Key（長さ同じ）で401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "wrong-admin-key" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("誤ったAdmin Key（長さ違い）で401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "short" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("誤ったAdmin Key（長さ違い）で401を返す（/api/r2-list）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/r2-list", env, {
+      headers: {
+        "X-Admin-Key":
+          "test-admin-key-but-much-much-much-much-much-much-longer",
+      },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("Admin Keyなしで401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, { method: "POST" });
+    expect(res.status).toBe(401);
+  });
+
+  it("ADMIN_KEY未設定で401を返す（キーを提供しても拒否）", async () => {
+    const env = { ...createMockBindings(files), ADMIN_KEY: undefined };
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(401);
+  });
+});
