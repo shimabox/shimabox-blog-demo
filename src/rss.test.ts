@@ -119,4 +119,67 @@ describe("generateRssFeed", () => {
 
     expect(rss).toContain("<description><![CDATA[]]></description>");
   });
+
+  it("タイトルに]]>が含まれてもCDATAが壊れない", () => {
+    const posts = [
+      createPost({
+        title: "タイトルに]]>が含まれる",
+        slug: "cdata-test",
+        date: "2025-06-15",
+      }),
+    ];
+    const rss = generateRssFeed(posts, mockEnv);
+
+    // CDATA が正しくエスケープされているか確認
+    expect(rss).toContain("<![CDATA[タイトルに]]]]><![CDATA[>が含まれる]]>");
+    // 生の ]]> による早期終了が無いか確認
+    expect(rss).not.toMatch(/<![CDATA[[^\]]*]]>\s*<\/title>/);
+  });
+
+  it("excerptに]]>が含まれてもCDATAが壊れない", () => {
+    const posts = [
+      createPost({
+        excerpt: "抜粋に]]>が含まれる場合",
+        slug: "excerpt-cdata-test",
+        date: "2025-06-15",
+      }),
+    ];
+    const rss = generateRssFeed(posts, mockEnv);
+
+    // CDATA が正しくエスケープされているか確認
+    expect(rss).toContain("<![CDATA[抜粋に]]]]><![CDATA[>が含まれる場合]]>");
+  });
+
+  it("カテゴリに]]>が含まれてもCDATAが壊れない", () => {
+    const posts = [
+      createPost({
+        categories: ["tech]]>danger", "normal"],
+        slug: "category-cdata-test",
+        date: "2025-06-15",
+      }),
+    ];
+    const rss = generateRssFeed(posts, mockEnv);
+
+    // CDATA が正しくエスケープされているか確認
+    expect(rss).toContain(
+      "<category><![CDATA[tech]]]]><![CDATA[>danger]]></category>",
+    );
+    expect(rss).toContain("<category><![CDATA[normal]]></category>");
+  });
+
+  it("複数の]]>が含まれる場合も正しくエスケープされる", () => {
+    const posts = [
+      createPost({
+        title: "]]>と]]>が両方ある",
+        slug: "multi-cdata-test",
+        date: "2025-06-15",
+      }),
+    ];
+    const rss = generateRssFeed(posts, mockEnv);
+
+    // 両方の ]]> がエスケープされているか確認
+    expect(rss).toContain(
+      "<![CDATA[]]]]><![CDATA[>と]]]]><![CDATA[>が両方ある]]>",
+    );
+  });
 });
