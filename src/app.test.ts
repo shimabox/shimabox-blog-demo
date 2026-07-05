@@ -554,3 +554,70 @@ describe("SVG配信のsandbox", () => {
     expect(res.headers.get("Content-Security-Policy")).toBeNull();
   });
 });
+
+describe("管理API認証の強化", () => {
+  const files: Record<string, string> = {
+    "posts/2025-06-15-test-post.md": createRawPost(),
+  };
+
+  it("正しいAdmin Keyで200を返す（/api/invalidate）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("正しいAdmin Keyで200を返す（/api/r2-list）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/r2-list", env, {
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("誤ったAdmin Key（長さ同じ）で401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "wrong-admin-key" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("誤ったAdmin Key（長さ違い）で401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "short" },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("誤ったAdmin Key（長さ違い）で401を返す（/api/r2-list）", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/r2-list", env, {
+      headers: {
+        "X-Admin-Key":
+          "test-admin-key-but-much-much-much-much-much-much-longer",
+      },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("Admin Keyなしで401を返す", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/api/invalidate", env, { method: "POST" });
+    expect(res.status).toBe(401);
+  });
+
+  it("ADMIN_KEY未設定で401を返す（キーを提供しても拒否）", async () => {
+    const env = { ...createMockBindings(files), ADMIN_KEY: undefined };
+    const res = await request("/api/invalidate", env, {
+      method: "POST",
+      headers: { "X-Admin-Key": "test-admin-key" },
+    });
+    expect(res.status).toBe(401);
+  });
+});

@@ -342,10 +342,8 @@ app.get("/favicon.ico", async (c) => {
 // POST /api/invalidate         → 全キャッシュ削除
 // POST /api/invalidate?slug=xx → 特定記事のキャッシュ削除
 app.post("/api/invalidate", async (c) => {
-  const key = c.req.header("X-Admin-Key");
-
   // ADMIN_KEYが設定されていない、または提供されたキーが一致しない場合は拒否
-  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
+  if (!(await verifyAdminKey(c))) {
     return c.text("Unauthorized", 401);
   }
 
@@ -358,9 +356,7 @@ app.post("/api/invalidate", async (c) => {
 // GET /api/r2-list           → 全オブジェクト一覧
 // GET /api/r2-list?prefix=xx → 指定prefixのオブジェクト一覧
 app.get("/api/r2-list", async (c) => {
-  const key = c.req.header("X-Admin-Key");
-
-  if (!c.env.ADMIN_KEY || key !== c.env.ADMIN_KEY) {
+  if (!(await verifyAdminKey(c))) {
     return c.text("Unauthorized", 401);
   }
 
@@ -448,6 +444,36 @@ async function serveDefaultOgp(c: Context<{ Bindings: Env }>) {
     "Content-Type": "image/png",
     "Cache-Control": "public, max-age=86400",
   });
+}
+
+// 文字列をSHA-256でハッシュ化し16進文字列で返す
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+// 管理API（/api/invalidate, /api/r2-list）の認証
+// - ADMIN_KEY未設定・キー未提供の場合は必ず拒否（fail-closed）
+// - 生の文字列比較ではなくSHA-256ハッシュ同士を比較する
+//   （crypto.subtle.timingSafeEqualはCloudflare Workers固有APIでvitestのnode環境に
+//    存在しないため使用しない。ハッシュ化後は仮に比較の途中経過がタイミングとして
+//    漏れてもハッシュ値のプレフィックスしか漏れず、原像である秘密鍵は復元できない
+//    ため通常の等値比較で問題ない）
+async function verifyAdminKey(c: Context<{ Bindings: Env }>): Promise<boolean> {
+  const provided = c.req.header("X-Admin-Key");
+  const expected = c.env.ADMIN_KEY;
+
+  if (!expected || !provided) return false;
+
+  const [providedHash, expectedHash] = await Promise.all([
+    sha256Hex(provided),
+    sha256Hex(expected),
+  ]);
+
+  return providedHash === expectedHash;
 }
 
 export default app;
