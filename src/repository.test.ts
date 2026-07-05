@@ -429,3 +429,69 @@ tags: []
     expect(call?.[2]).toBeUndefined();
   });
 });
+
+describe("listPosts: frontmatterのdateバリデーション", () => {
+  it("dateが不正な記事は一覧から除外される", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/valid.md": createRawPost({ slug: "valid", date: "2025-06-15" }),
+      "posts/invalid.md": createRawPost({
+        slug: "invalid",
+        date: "いつか",
+      }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("valid");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("slug=invalid"),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("dateが空の記事も一覧から除外される", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/valid.md": createRawPost({ slug: "valid", date: "2025-06-15" }),
+      "posts/no-date.md": createRawPost({ slug: "no-date", date: "" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("valid");
+
+    warnSpy.mockRestore();
+  });
+
+  it("dateが正常な記事は従来通り返る", async () => {
+    const env = createMockEnv({
+      "posts/a.md": createRawPost({ slug: "a", date: "2025-06-15" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("a");
+    expect(posts[0].date).toBe("2025-06-15");
+  });
+
+  it("不正な記事があっても他の記事のソート順が保たれる", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/old.md": createRawPost({ slug: "old-post", date: "2025-01-01" }),
+      "posts/broken.md": createRawPost({
+        slug: "broken-post",
+        date: "いつか",
+      }),
+      "posts/new.md": createRawPost({ slug: "new-post", date: "2025-06-15" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(2);
+    expect(posts[0].slug).toBe("new-post");
+    expect(posts[1].slug).toBe("old-post");
+
+    warnSpy.mockRestore();
+  });
+});

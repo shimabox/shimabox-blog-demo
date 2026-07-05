@@ -42,6 +42,17 @@ async function getSlugIndex(env: Env): Promise<Record<string, string>> {
   return index;
 }
 
+/**
+ * frontmatter の date が有効な日付文字列かどうかを判定する
+ *
+ * 欠落（空文字）や `date: いつか` のようなパース不能な値は
+ * `new Date()` で Invalid Date になるため、記事一覧から除外する対象を判定する。
+ */
+function hasValidDate(meta: PostMeta): boolean {
+  if (!meta.date) return false;
+  return !Number.isNaN(new Date(meta.date).getTime());
+}
+
 export async function listPosts(env: Env): Promise<PostMeta[]> {
   // キャッシュ確認
   const cached = await env.CACHE.get<PostMeta[]>(CACHE_KEY, "json");
@@ -56,9 +67,14 @@ export async function listPosts(env: Env): Promise<PostMeta[]> {
     if (!file) continue;
     const text = await file.text();
     const meta = parseFrontmatter(text);
-    if (meta.slug) {
-      posts.push(meta);
+    if (!meta.slug) continue;
+    if (!hasValidDate(meta)) {
+      console.warn(
+        `Invalid date in frontmatter, skipping: slug=${meta.slug} date="${meta.date}"`,
+      );
+      continue;
     }
+    posts.push(meta);
   }
 
   // 日付降順ソート
