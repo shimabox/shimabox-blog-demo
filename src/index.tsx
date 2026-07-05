@@ -12,6 +12,7 @@ import type { Env } from "./types";
 import { NotFound } from "./views/NotFound";
 import { PostList } from "./views/PostList";
 import { PostView } from "./views/PostView";
+import { ServerError } from "./views/ServerError";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -204,7 +205,9 @@ app.get("/page/:page/", async (c) => {
 
 // カテゴリページ
 app.get("/category/:category/", async (c) => {
-  const category = decodeURIComponent(c.req.param("category"));
+  // Honoのc.req.param()は既にデコード済みの値を返すため、再デコードすると
+  // %を含むカテゴリ名（例: 100%25off）でURIErrorになる。再デコードは行わない。
+  const category = c.req.param("category");
   const posts = await getPostsByCategory(c.env, category);
   return c.html(<PostList posts={posts} env={c.env} category={category} />);
 });
@@ -330,6 +333,12 @@ app.get("/api/r2-list", async (c) => {
 // 404
 app.notFound((c) => {
   return c.html(<NotFound env={c.env} />, 404);
+});
+
+// 想定外のエラー（レスポンスにエラー詳細は含めない）
+app.onError((err, c) => {
+  console.error(err);
+  return c.html(<ServerError env={c.env} />, 500);
 });
 
 // ========================================
