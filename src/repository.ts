@@ -8,6 +8,32 @@ const SLUG_INDEX_KEY = "posts:slugIndex";
 const NOT_FOUND_TTL = 300;
 
 /**
+ * R2 のすべてのオブジェクトをページネーション対応で取得
+ * BUCKET.list() は最大1,000件しか返さないため、truncated が true の間
+ * cursor を使ってループする
+ */
+async function listAllObjects(
+  env: Env,
+  prefix: string,
+): Promise<{ key: string }[]> {
+  const objects: { key: string }[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const listed = await env.BUCKET.list({
+      prefix,
+      cursor,
+    });
+
+    objects.push(...listed.objects);
+
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  return objects;
+}
+
+/**
  * slug → R2キー の索引を取得（無ければ構築してキャッシュ）
  *
  * posts/ と pages/ の全オブジェクトの frontmatter を読んで slug を解決する。
@@ -24,8 +50,8 @@ async function getSlugIndex(env: Env): Promise<Record<string, string>> {
 
   const index: Record<string, string> = {};
   for (const prefix of ["posts/", "pages/"]) {
-    const list = await env.BUCKET.list({ prefix });
-    for (const obj of list.objects) {
+    const objects = await listAllObjects(env, prefix);
+    for (const obj of objects) {
       const file = await env.BUCKET.get(obj.key);
       if (!file) continue;
       const text = await file.text();
@@ -58,11 +84,11 @@ export async function listPosts(env: Env): Promise<PostMeta[]> {
   const cached = await env.CACHE.get<PostMeta[]>(CACHE_KEY, "json");
   if (cached) return cached;
 
-  // R2から取得
-  const list = await env.BUCKET.list({ prefix: "posts/" });
+  // R2から取得（ページネーション対応）
+  const objects = await listAllObjects(env, "posts/");
   const posts: PostMeta[] = [];
 
-  for (const obj of list.objects) {
+  for (const obj of objects) {
     const file = await env.BUCKET.get(obj.key);
     if (!file) continue;
     const text = await file.text();
