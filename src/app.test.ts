@@ -504,3 +504,53 @@ describe("セキュリティヘッダ", () => {
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000");
   });
 });
+
+describe("SVG配信のsandbox", () => {
+  const files = {
+    "images/icon.svg": "<svg><script>alert(1)</script></svg>",
+    "images/sample.png": "0123456789".repeat(20),
+  };
+
+  it("svgにはContent-Security-Policy: sandboxヘッダが付く", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/icon.svg", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("拡張子が大文字のSVGにもContent-Security-Policy: sandboxヘッダが付く", async () => {
+    const env = createMockBindings({
+      "images/icon.SVG": "<svg><script>alert(1)</script></svg>",
+    });
+    const res = await request("/images/icon.SVG", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("pngにはContent-Security-Policyヘッダが付かない", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/png");
+    expect(res.headers.get("Content-Security-Policy")).toBeNull();
+  });
+
+  it("Rangeリクエストのsvgにもsandboxヘッダが付く", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/icon.svg", env, {
+      headers: { Range: "bytes=0-9" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("Content-Security-Policy")).toBe("sandbox");
+  });
+
+  it("Rangeリクエストのpngにはsandboxヘッダが付かない", async () => {
+    const env = createMockBindings(files);
+    const res = await request("/images/sample.png", env, {
+      headers: { Range: "bytes=0-9" },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("Content-Security-Policy")).toBeNull();
+  });
+});

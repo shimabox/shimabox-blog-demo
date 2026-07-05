@@ -85,23 +85,27 @@ app.get("/images/:path{.+}", async (c) => {
   const rangeHeader = c.req.header("Range");
 
   if (rangeHeader) {
-    return serveRange(c, key, contentType, rangeHeader);
+    return serveRange(c, key, path, contentType, rangeHeader);
   }
 
   const object = await c.env.BUCKET.get(key);
   if (!object) return c.html(<NotFound env={c.env} />, 404);
 
-  return c.body(object.body as ReadableStream, 200, {
-    "Content-Type": contentType,
-    "Content-Length": String(object.size),
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000",
-  });
+  return c.body(
+    object.body as ReadableStream,
+    200,
+    buildImageHeaders(path, contentType, {
+      "Content-Length": String(object.size),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=31536000",
+    }),
+  );
 });
 
 async function serveRange(
   c: Context<{ Bindings: Env }>,
   key: string,
+  path: string,
   contentType: string,
   rangeHeader: string,
 ): Promise<Response> {
@@ -150,13 +154,16 @@ async function serveRange(
   });
   if (!object) return c.html(<NotFound env={c.env} />, 404);
 
-  return c.body(object.body as ReadableStream, 206, {
-    "Content-Type": contentType,
-    "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-    "Content-Length": String(length),
-    "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000",
-  });
+  return c.body(
+    object.body as ReadableStream,
+    206,
+    buildImageHeaders(path, contentType, {
+      "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+      "Content-Length": String(length),
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=31536000",
+    }),
+  );
 }
 
 // OGP画像（静的ファイル配信）
@@ -409,6 +416,29 @@ function getContentType(path: string): string {
     m4v: "video/x-m4v",
   };
   return types[ext || ""] || "application/octet-stream";
+}
+
+// SVGは<script>を内包できるため、直接開かれた場合に備えてサンドボックス化する
+// （<img src="...svg">での表示には影響しない。CSP sandboxはドキュメントとして開いた場合のみ効く）
+function isSvgPath(path: string): boolean {
+  return /\.svg$/i.test(path);
+}
+
+function buildImageHeaders(
+  path: string,
+  contentType: string,
+  extraHeaders: Record<string, string>,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    ...extraHeaders,
+  };
+
+  if (isSvgPath(path)) {
+    headers["Content-Security-Policy"] = "sandbox";
+  }
+
+  return headers;
 }
 
 async function serveDefaultOgp(c: Context<{ Bindings: Env }>) {
