@@ -57,10 +57,13 @@ function createMockEnv(
       const val = kvStore.get(key);
       return Promise.resolve(val ? JSON.parse(val) : null);
     }),
-    put: vi.fn((key: string, value: string) => {
-      kvStore.set(key, value);
-      return Promise.resolve();
-    }),
+    put: vi.fn(
+      (key: string, value: string, _options?: { expirationTtl?: number }) => {
+        // 第3引数（expirationTtl 等）はテストでは値のみ保持し挙動には影響させない
+        kvStore.set(key, value);
+        return Promise.resolve();
+      },
+    ),
     delete: vi.fn((key: string) => {
       kvStore.delete(key);
       return Promise.resolve();
@@ -182,6 +185,74 @@ describe("getPost", () => {
     await getPost(env, "cached");
     expect(env._kvStore.has("posts:cached")).toBe(true);
   });
+
+  it("存在しないslugは2回目以降R2をスキャンしない（ネガティブキャッシュ）", async () => {
+    const env = createMockEnv({
+      "posts/2025-01-01-other.md": createRawPost({ slug: "other" }),
+    });
+    const bucket = env.BUCKET as unknown as { list: ReturnType<typeof vi.fn> };
+
+    const first = await getPost(env, "ghost");
+    expect(first).toBeNull();
+    // 初回は索引構築のためスキャンが走る
+    const callCount = bucket.list.mock.calls.length;
+    expect(callCount).toBeGreaterThan(0);
+    // ネガティブキャッシュが書かれている（TTL 300秒）
+    expect(env._kvStore.has("posts:404:ghost")).toBe(true);
+
+    const second = await getPost(env, "ghost");
+    expect(second).toBeNull();
+    // 2回目はネガティブキャッシュヒットでR2スキャンなし
+    expect(bucket.list.mock.calls.length).toBe(callCount);
+  });
+
+  it("索引構築後は既知slugの取得で対象ファイル1件のみをgetする", async () => {
+    const env = createMockEnv({
+      "posts/2025-06-15-a.md": createRawPost({ slug: "a" }),
+      "posts/2025-06-16-b.md": createRawPost({ slug: "b" }),
+      "posts/2025-06-17-target.md": createRawPost({ slug: "target" }),
+    });
+    const bucket = env.BUCKET as unknown as { get: ReturnType<typeof vi.fn> };
+
+    // 別slugの取得で索引を先に構築・キャッシュさせる
+    await getPost(env, "a");
+    bucket.get.mockClear();
+
+    const post = await getPost(env, "target");
+    expect(post?.slug).toBe("target");
+    // 全件getせず、該当ファイル1件のみ
+    expect(bucket.get).toHaveBeenCalledTimes(1);
+    expect(bucket.get).toHaveBeenCalledWith("posts/2025-06-17-target.md");
+  });
+
+  it("pagesディレクトリのslugも索引経由で取得できる", async () => {
+    const env = createMockEnv({
+      "posts/2025-06-15-a.md": createRawPost({ slug: "a" }),
+      "pages/about.md": createRawPost({
+        title: "About",
+        slug: "about",
+        fixedPage: "true",
+      }),
+    });
+
+    const post = await getPost(env, "about");
+    expect(post).not.toBeNull();
+    expect(post?.title).toBe("About");
+  });
+
+  it("索引にあるがR2に実体が無い場合はnullを返し索引を破棄する", async () => {
+    const env = createMockEnv(); // 実体ファイルなし
+    // 実体のないキーを指す索引を手動でセット
+    env._kvStore.set(
+      "posts:slugIndex",
+      JSON.stringify({ ghost: "posts/2025-06-15-ghost.md" }),
+    );
+
+    const post = await getPost(env, "ghost");
+    expect(post).toBeNull();
+    // 索引が破棄され、次回アクセスで再構築される
+    expect(env._kvStore.has("posts:slugIndex")).toBe(false);
+  });
 });
 
 describe("getPostsByCategory", () => {
@@ -264,6 +335,19 @@ describe("invalidateCache", () => {
     expect(env._kvStore.has("posts:index")).toBe(false);
   });
 
+  it("slug指定でslugIndexとネガティブキャッシュも削除する", async () => {
+    const env = createMockEnv();
+    env._kvStore.set("posts:my-post", '{"title":"cached"}');
+    env._kvStore.set("posts:index", "[...]");
+    env._kvStore.set("posts:slugIndex", '{"my-post":"posts/x.md"}');
+    env._kvStore.set("posts:404:my-post", "true");
+
+    await invalidateCache(env, "my-post");
+
+    expect(env._kvStore.has("posts:slugIndex")).toBe(false);
+    expect(env._kvStore.has("posts:404:my-post")).toBe(false);
+  });
+
   it("slug未指定で全キャッシュを削除する", async () => {
     const env = createMockEnv();
     env._kvStore.set("posts:index", "[...]");
@@ -273,5 +357,321 @@ describe("invalidateCache", () => {
     await invalidateCache(env);
 
     expect(env._kvStore.size).toBe(0);
+  });
+});
+
+describe("getPost - GitHub埋め込み失敗時のキャッシュTTL", () => {
+  it("GitHub API取得に失敗した記事はexpirationTtl: 3600でキャッシュされる", async () => {
+    const raw = `---
+title: GitHub埋め込み失敗テスト
+slug: gh-fail
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+    const env = createMockEnv({
+      "posts/2025-01-01-gh-fail.md": raw,
+    });
+
+    await getPost(env, "gh-fail");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(([key]) => key === "posts:gh-fail");
+    expect(call?.[2]).toEqual({ expirationTtl: 3600 });
+  });
+
+  it("GitHub URLが無い記事はTTLなしでキャッシュされる", async () => {
+    const env = createMockEnv({
+      "posts/2025-01-01-normal.md": createRawPost({ slug: "normal" }),
+    });
+
+    await getPost(env, "normal");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(([key]) => key === "posts:normal");
+    expect(call?.[2]).toBeUndefined();
+  });
+
+  it("GitHub API取得に成功した記事はTTLなしでキャッシュされる", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            description: "desc",
+            stargazers_count: 1,
+            language: "TypeScript",
+          }),
+      }),
+    );
+
+    const raw = `---
+title: GitHub埋め込み成功テスト
+slug: gh-success
+date: 2025-01-01
+categories: []
+tags: []
+---
+
+[https://github.com/owner/repo](https://github.com/owner/repo)`;
+    const env = createMockEnv({
+      "posts/2025-01-01-gh-success.md": raw,
+    });
+
+    await getPost(env, "gh-success");
+
+    const cache = env.CACHE as unknown as { put: ReturnType<typeof vi.fn> };
+    const call = cache.put.mock.calls.find(
+      ([key]) => key === "posts:gh-success",
+    );
+    expect(call?.[2]).toBeUndefined();
+  });
+});
+
+describe("listPosts: frontmatterのdateバリデーション", () => {
+  it("dateが不正な記事は一覧から除外される", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/valid.md": createRawPost({ slug: "valid", date: "2025-06-15" }),
+      "posts/invalid.md": createRawPost({
+        slug: "invalid",
+        date: "いつか",
+      }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("valid");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("slug=invalid"),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("dateが空の記事も一覧から除外される", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/valid.md": createRawPost({ slug: "valid", date: "2025-06-15" }),
+      "posts/no-date.md": createRawPost({ slug: "no-date", date: "" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("valid");
+
+    warnSpy.mockRestore();
+  });
+
+  it("dateが正常な記事は従来通り返る", async () => {
+    const env = createMockEnv({
+      "posts/a.md": createRawPost({ slug: "a", date: "2025-06-15" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].slug).toBe("a");
+    expect(posts[0].date).toBe("2025-06-15");
+  });
+
+  it("不正な記事があっても他の記事のソート順が保たれる", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = createMockEnv({
+      "posts/old.md": createRawPost({ slug: "old-post", date: "2025-01-01" }),
+      "posts/broken.md": createRawPost({
+        slug: "broken-post",
+        date: "いつか",
+      }),
+      "posts/new.md": createRawPost({ slug: "new-post", date: "2025-06-15" }),
+    });
+
+    const posts = await listPosts(env);
+    expect(posts).toHaveLength(2);
+    expect(posts[0].slug).toBe("new-post");
+    expect(posts[1].slug).toBe("old-post");
+
+    warnSpy.mockRestore();
+  });
+});
+
+describe("R2 list ページネーション", () => {
+  it("listPosts() が2ページに分かれたデータから全記事を取得する", async () => {
+    // モック環境のセットアップ（通常のlistAllObjectsのテスト用）
+    const files = {
+      "posts/2025-01-01-post1.md": createRawPost({
+        slug: "post1",
+        date: "2025-01-01",
+      }),
+      "posts/2025-01-02-post2.md": createRawPost({
+        slug: "post2",
+        date: "2025-01-02",
+      }),
+      "posts/2025-01-03-post3.md": createRawPost({
+        slug: "post3",
+        date: "2025-01-03",
+      }),
+    };
+
+    const bucket = {
+      list: vi.fn(
+        ({ prefix, cursor }: { prefix?: string; cursor?: string }) => {
+          const objects = Object.keys(files)
+            .filter((k) => (prefix ? k.startsWith(prefix) : true))
+            .map((key) => ({ key }));
+
+          // 1ページ目（cursor undefined）: 最初の1件 + truncated=true, cursor="c1"
+          if (!cursor) {
+            return Promise.resolve({
+              objects: objects.slice(0, 1),
+              truncated: true,
+              cursor: "c1",
+            });
+          }
+
+          // 2ページ目（cursor="c1"）: 残りの2件 + truncated=false
+          if (cursor === "c1") {
+            return Promise.resolve({
+              objects: objects.slice(1),
+              truncated: false,
+              cursor: undefined,
+            });
+          }
+
+          return Promise.resolve({ objects: [] });
+        },
+      ),
+      get: vi.fn((key: string) => {
+        const content = files[key as keyof typeof files];
+        if (!content) return Promise.resolve(null);
+        return Promise.resolve({ text: () => Promise.resolve(content) });
+      }),
+    } as unknown as R2Bucket;
+
+    const cache = {
+      get: vi.fn(() => Promise.resolve(null)),
+      put: vi.fn(() => Promise.resolve()),
+      delete: vi.fn(() => Promise.resolve()),
+      list: vi.fn(() => Promise.resolve({ keys: [] })),
+    } as unknown as KVNamespace;
+
+    const env = {
+      BUCKET: bucket,
+      CACHE: cache,
+      SITE_URL: "https://blog.example.com",
+      SITE_TITLE: "テストブログ",
+      SITE_DESCRIPTION: "テスト用",
+    } as Env;
+
+    const posts = await listPosts(env);
+
+    // 全3件が取得されていることを確認
+    expect(posts).toHaveLength(3);
+    expect(posts.map((p) => p.slug)).toEqual(["post3", "post2", "post1"]); // 日付降順
+
+    // list() が2回呼ばれていることを確認（ページネーション成功）
+    expect(bucket.list).toHaveBeenCalledTimes(2);
+    expect(bucket.list).toHaveBeenNthCalledWith(1, {
+      prefix: "posts/",
+      cursor: undefined,
+    });
+    expect(bucket.list).toHaveBeenNthCalledWith(2, {
+      prefix: "posts/",
+      cursor: "c1",
+    });
+  });
+
+  it("getPost() による getSlugIndex が2ページに分かれたデータから全slugを取得する", async () => {
+    const files = {
+      "posts/2025-01-01-post1.md": createRawPost({
+        slug: "post1",
+        date: "2025-01-01",
+      }),
+      "pages/page1.md": createRawPost({
+        slug: "about",
+        date: "2025-01-02",
+      }),
+      "pages/page2.md": createRawPost({
+        slug: "contact",
+        date: "2025-01-03",
+      }),
+    };
+
+    const kvStore = new Map<string, string>();
+
+    const bucket = {
+      list: vi.fn(
+        ({ prefix, cursor }: { prefix?: string; cursor?: string }) => {
+          const objects = Object.keys(files)
+            .filter((k) => (prefix ? k.startsWith(prefix) : true))
+            .map((key) => ({ key }));
+
+          // 1ページ目: 最初の1件 + truncated=true
+          if (!cursor) {
+            return Promise.resolve({
+              objects: objects.slice(0, 1),
+              truncated: true,
+              cursor: "c1",
+            });
+          }
+
+          // 2ページ目: 残りの1件 + truncated=false
+          if (cursor === "c1") {
+            return Promise.resolve({
+              objects: objects.slice(1),
+              truncated: false,
+              cursor: undefined,
+            });
+          }
+
+          return Promise.resolve({ objects: [] });
+        },
+      ),
+      get: vi.fn((key: string) => {
+        const content = files[key as keyof typeof files];
+        if (!content) return Promise.resolve(null);
+        return Promise.resolve({ text: () => Promise.resolve(content) });
+      }),
+    } as unknown as R2Bucket;
+
+    const cache = {
+      get: vi.fn((key: string) => {
+        const val = kvStore.get(key);
+        return Promise.resolve(val ? JSON.parse(val) : null);
+      }),
+      put: vi.fn((key: string, value: string) => {
+        kvStore.set(key, value);
+        return Promise.resolve();
+      }),
+      delete: vi.fn((key: string) => {
+        kvStore.delete(key);
+        return Promise.resolve();
+      }),
+      list: vi.fn(() => Promise.resolve({ keys: [] })),
+    } as unknown as KVNamespace;
+
+    const env = {
+      BUCKET: bucket,
+      CACHE: cache,
+      SITE_URL: "https://blog.example.com",
+      SITE_TITLE: "テストブログ",
+      SITE_DESCRIPTION: "テスト用",
+    } as Env;
+
+    // getPost() が getSlugIndex を呼び出す
+    const post = await getPost(env, "about");
+
+    expect(post).not.toBeNull();
+    expect(post?.slug).toBe("about");
+
+    // slugIndex が全3件のエントリを持つことを確認
+    const slugIndex = JSON.parse(
+      kvStore.get("posts:slugIndex") || "{}",
+    ) as Record<string, string>;
+    expect(Object.keys(slugIndex)).toHaveLength(3);
+    expect(slugIndex.post1).toBe("posts/2025-01-01-post1.md");
+    expect(slugIndex.about).toBe("pages/page1.md");
+    expect(slugIndex.contact).toBe("pages/page2.md");
   });
 });

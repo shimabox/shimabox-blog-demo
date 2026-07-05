@@ -540,8 +540,13 @@ function generateGitHubCard(
 
 /**
  * GitHub埋め込みを非同期で処理
+ *
+ * 戻り値の hadFailure は、GitHub API呼び出しが1件以上失敗した（レート制限等でnullが
+ * 返った）場合のみ true。呼び出し元でキャッシュTTLの判断に使う。
  */
-async function convertGitHubEmbeds(html: string): Promise<string> {
+async function convertGitHubEmbeds(
+  html: string,
+): Promise<{ html: string; hadFailure: boolean }> {
   // GitHub URLを抽出
   const patterns = [
     // <p><a href="...">...</a></p>
@@ -587,16 +592,18 @@ async function convertGitHubEmbeds(html: string): Promise<string> {
     }
   }
 
-  if (matches.length === 0) return html;
+  if (matches.length === 0) return { html, hadFailure: false };
 
   // 重複を除去してAPI呼び出し
   const uniqueRepos = [...new Set(matches.map((m) => `${m.owner}/${m.repo}`))];
   const repoInfoMap = new Map<string, GitHubRepoInfo | null>();
+  let hadFailure = false;
 
   await Promise.all(
     uniqueRepos.map(async (key) => {
       const [owner, repo] = key.split("/");
       const info = await fetchGitHubRepoInfo(owner, repo);
+      if (info === null) hadFailure = true;
       repoInfoMap.set(key, info);
     }),
   );
@@ -608,7 +615,7 @@ async function convertGitHubEmbeds(html: string): Promise<string> {
     html = html.replace(full, card);
   }
 
-  return html;
+  return { html, hadFailure };
 }
 
 export async function parseMarkdown(raw: string): Promise<Post> {
@@ -656,7 +663,9 @@ export async function parseMarkdown(raw: string): Promise<Post> {
   bodyHtml = convertEmbeds(bodyHtml);
 
   // GitHub埋め込みを変換（API呼び出しあり）
-  bodyHtml = await convertGitHubEmbeds(bodyHtml);
+  const githubEmbedResult = await convertGitHubEmbeds(bodyHtml);
+  bodyHtml = githubEmbedResult.html;
+  const hadEmbedFailure = githubEmbedResult.hadFailure;
 
   // 本文内画像のalt補完と遅延読み込み属性を付与
   bodyHtml = ensureImgAttributes(bodyHtml);
@@ -693,6 +702,7 @@ export async function parseMarkdown(raw: string): Promise<Post> {
     content: html,
     // </script>をプレースホルダーに置換してscriptタグが閉じないようにする
     rawContent: content.replace(/<\/script/gi, "__SCRIPT_CLOSE__"),
+    ...(hadEmbedFailure ? { hadEmbedFailure: true } : {}),
   };
 }
 

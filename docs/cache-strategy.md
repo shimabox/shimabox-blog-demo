@@ -320,6 +320,10 @@ GitHub → Settings → Secrets and variables → Actions で以下を設定:
 |-----|-----|-----|
 | `posts:index` | 全記事のメタデータ（PostMeta[]） | 一覧ページ、ページネーション |
 | `posts:{slug}` | パース済み記事（Post） | 個別記事ページ |
+| `posts:slugIndex` | slug → R2キー の索引（posts/・pages/ の frontmatter から構築、無期限） | `getPost()` で該当ファイル1件だけを取得するため |
+| `posts:404:{slug}` | 存在しない slug のネガティブキャッシュ（TTL 300秒） | 存在しないURLへの総当たりでR2フルスキャンが走るのを防ぐ |
+
+> `posts:slugIndex` は `posts:index` と違い pages/（固定ページ）も対象。存在しない slug へのアクセスは `posts:404:{slug}` に短命キャッシュされ、次回以降はR2スキャンなしで即 null を返す。どちらも `posts:` prefix なので全キャッシュ削除でまとめてクリアされる。
 
 ## メリット
 
