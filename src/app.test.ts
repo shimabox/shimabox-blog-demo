@@ -433,4 +433,32 @@ describe("Honoアプリ統合テスト", () => {
       expect(res.status).toBe(404);
     });
   });
+
+  describe("カテゴリページ", () => {
+    it("%を含むカテゴリ名でも二重デコードでエラーにならず200を返す", async () => {
+      const env = createMockBindings(files);
+      // Honoは既にデコード済みの値をparamに渡すため、%25offは%offになる
+      const res = await request("/category/100%25off/", env);
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("エラーハンドリング", () => {
+    it("処理中に例外が発生した場合はエラー詳細を含まないHTMLの500を返す", async () => {
+      const env = createMockBindings(files);
+      const boom = new Error("something went wrong: secret-detail");
+      (env.CACHE.get as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+        throw boom;
+      });
+
+      const res = await request("/", env);
+
+      expect(res.status).toBe(500);
+      expect(res.headers.get("Content-Type")).toContain("text/html");
+      const html = await res.text();
+      expect(html).not.toContain("secret-detail");
+      expect(html).not.toContain(boom.stack ?? "");
+      expect(html).toContain("エラーが発生しました");
+    });
+  });
 });
