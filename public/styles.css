@@ -69,6 +69,7 @@ body {
       url('/images/background.png')
     );
   background-attachment: fixed;
+  background-blend-mode: soft-light;
   transition: background-color 0.3s, color 0.3s;
   overflow-wrap: anywhere; /* 収まらない場合に折り返す */
   word-break: normal; /* 単語の分割はデフォルトに依存 */
@@ -370,11 +371,12 @@ pre {
   border-radius: 8px;
   overflow-x: auto;
   margin: 1.5rem 0;
+  line-height: 1.4;
 }
 
 code {
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  font-size: 1.1em;
+  font-size: 1em;
 }
 
 :not(pre) > code {
