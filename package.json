@@ -3,6 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx --watch dev-server.tsx",
+    "dev:drafts": "tsx --watch dev-server.tsx --drafts",
     "deploy": "wrangler pages deploy ./public",
     "format": "biome format --write .",
     "lint": "biome lint .",

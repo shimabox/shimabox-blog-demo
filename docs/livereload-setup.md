@@ -16,6 +16,8 @@ npm run dev
 
 ブラウザで http://localhost:8787 を開いて、ファイルを編集・保存すると自動でリロードされる。
 
+`content/drafts/` の下書きも表示したい場合は `npm run dev:drafts` で起動する。下書きの編集・保存でも同じように自動リロードされる。
+
 ## 仕組み
 
 ### content/ の変更
@@ -46,6 +48,6 @@ WebSocket 接続切断を検知
 
 - livereload サーバー: ポート 35729
 - 監視対象: `content/`, `src/`, `public/`, `dev-server.tsx`
-- 対象ファイル: `.md`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.css`, `.ts`, `.tsx`
+- 対象ファイル: `.md`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`, `.css`, `.ts`, `.tsx`
 - サーバー再起動: `tsx --watch` による自動再起動
 - 接続切断時: カスタムスクリプトでサーバー復帰を待機してリロード

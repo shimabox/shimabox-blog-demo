@@ -67,6 +67,7 @@ Hono + Cloudflare Pages + R2 で構築した個人ブログシステム。
 ```
 
 - R2/KVを使わず、ローカルの `content/` から直接読み込み
+- `npm run dev:drafts` で起動すると `content/drafts/` の下書きも記事として表示（タイトルに「【下書き】」が付く）
 - ファイル変更時に自動リロード（LiveReload）
 - 環境変数は dev-server.tsx 内にハードコード（`.dev.vars` は使用されない）
 
@@ -171,6 +172,7 @@ your-blog/
 ├── content/
 │   ├── posts/             # 記事（YYYY-MM-DD-slug.md）
 │   ├── pages/             # 固定ページ（about.md, privacypolicy.md）
+│   ├── drafts/            # 下書き（.gitignore、npm run dev:drafts で表示）
 │   └── images/            # 画像、OGP画像（ogp/）
 ├── docs/                  # ドキュメント
 ├── fonts/                 # OGP生成用フォント（.gitignore）
