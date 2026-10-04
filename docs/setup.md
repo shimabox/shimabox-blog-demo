@@ -127,6 +127,20 @@ npm run dev
 # http://localhost:8787 でアクセス
 ```
 
+### 下書きの確認
+
+公開前の記事は `content/drafts/` に置くと、ローカルでだけ確認できます。`content/drafts/` は `.gitignore` 済みなのでコミットされず、R2 にも同期されません。
+
+```bash
+npm run dev:drafts
+# content/posts/ に加えて content/drafts/ の記事も表示される
+```
+
+- 下書きはタイトルの先頭に「【下書き】」が付き、一覧と記事ページで見分けられます
+- ファイル形式（frontmatter）は `content/posts/` の記事と同じです
+- `npm run dev` では下書きは表示されません（記事ページも 404 になります）
+- 公開するときは `content/posts/` にファイルを移動します
+
 > [!NOTE]
 > `npm run dev`（dev-server.tsx）では `.dev.vars` は読み込まれません。
 > dev-server.tsx は LiveReload 対応のため独自実装しており、環境変数は dev-server.tsx 内にハードコードされています。
@@ -160,6 +174,7 @@ npm run deploy
 | コマンド | 説明 |
 |---------|------|
 | `npm run dev` | 開発サーバー起動（LiveReload対応） |
+| `npm run dev:drafts` | `content/drafts/` の下書きも表示して開発サーバー起動 |
 | `npm run deploy` | Cloudflare Pagesにデプロイ |
 | `npm run sync` | コンテンツをR2に同期 |
 | `npm run sync -- slug` | 特定記事のみR2に同期 |
@@ -197,6 +212,9 @@ ogp_bg: false  # オプション（OGP背景画像を無効化する場合）
 
 記事の本文をMarkdownで記述
 ```
+
+> [!TIP]
+> 書きかけの記事は `content/drafts/` に置き、`npm run dev:drafts` で確認できます（[下書きの確認](#下書きの確認)）。公開するときに `content/posts/` へ移動します。
 
 #### スラッシュコマンド（Claude Code）
 
@@ -237,6 +255,7 @@ npm run deploy
 
 ```bash
 # 1. content/posts/YYYY-MM-DD-slug.md を作成
+#    （下書き段階なら content/drafts/ に置いて npm run dev:drafts で確認し、公開時に posts/ へ移動）
 
 # 2. OGP画像生成
 npm run generate-ogp -- slug-name --force

@@ -4,6 +4,7 @@
  * livereload でファイル変更時にブラウザ自動リロード
  *
  * npm run dev
+ * npm run dev:drafts  # content/drafts の下書きも記事として表示する
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -20,11 +21,13 @@ import type { Post, PostMeta } from "./src/types";
 const CONTENT_DIR = "./content";
 const PORT = 8787;
 const LIVERELOAD_PORT = 35729;
+const SHOW_DRAFTS = process.argv.includes("--drafts");
+const DRAFT_TITLE_PREFIX = "【下書き】";
 
 // livereload サーバー起動
 const lrServer = createLivereloadServer({
   port: LIVERELOAD_PORT,
-  exts: ["md", "png", "jpg", "jpeg", "gif", "css", "ts", "tsx"],
+  exts: ["md", "png", "jpg", "jpeg", "gif", "svg", "webp", "css", "ts", "tsx"],
   delay: 500,
 });
 lrServer.watch([CONTENT_DIR, "./src", "./public", "./dev-server.tsx"]);
@@ -71,18 +74,40 @@ app.use("*", async (c, next) => {
   }
 });
 
+// 記事として読むディレクトリ（--drafts 指定時は drafts も含める）
+function readPostSources(): { content: string; isDraft: boolean }[] {
+  const dirs = SHOW_DRAFTS ? ["posts", "drafts"] : ["posts"];
+  const sources: { content: string; isDraft: boolean }[] = [];
+
+  for (const dir of dirs) {
+    const dirPath = join(CONTENT_DIR, dir);
+    if (!existsSync(dirPath)) continue;
+    for (const file of readdirSync(dirPath).filter((f) => f.endsWith(".md"))) {
+      sources.push({
+        content: readFileSync(join(dirPath, file), "utf-8"),
+        isDraft: dir === "drafts",
+      });
+    }
+  }
+
+  return sources;
+}
+
+// 下書きは一覧と記事ページで見分けられるようタイトルに印を付ける
+function markDraft<T extends { title: string }>(item: T, isDraft: boolean): T {
+  return isDraft
+    ? { ...item, title: `${DRAFT_TITLE_PREFIX}${item.title}` }
+    : item;
+}
+
 // ファイルシステムから記事一覧を取得
 function listPosts(): PostMeta[] {
-  const postsDir = join(CONTENT_DIR, "posts");
-  if (!existsSync(postsDir)) return [];
-
   const posts: PostMeta[] = [];
 
-  for (const file of readdirSync(postsDir).filter((f) => f.endsWith(".md"))) {
-    const content = readFileSync(join(postsDir, file), "utf-8");
+  for (const { content, isDraft } of readPostSources()) {
     const meta = parseFrontmatter(content);
     if (meta.slug) {
-      posts.push(meta);
+      posts.push(markDraft(meta, isDraft));
     }
   }
 
@@ -93,16 +118,11 @@ function listPosts(): PostMeta[] {
 
 // ファイルシステムから記事を取得
 async function getPost(slug: string): Promise<Post | null> {
-  // posts から検索
-  const postsDir = join(CONTENT_DIR, "posts");
-  if (existsSync(postsDir)) {
-    for (const file of readdirSync(postsDir).filter((f) => f.endsWith(".md"))) {
-      const filePath = join(postsDir, file);
-      const content = readFileSync(filePath, "utf-8");
-      const meta = parseFrontmatter(content);
-      if (meta.slug === slug) {
-        return parseMarkdown(content);
-      }
+  // posts（と drafts）から検索
+  for (const { content, isDraft } of readPostSources()) {
+    const meta = parseFrontmatter(content);
+    if (meta.slug === slug) {
+      return markDraft(await parseMarkdown(content), isDraft);
     }
   }
 
@@ -328,7 +348,11 @@ app.notFound((c) => {
 // ========================================
 console.log(`🚀 Dev server running at http://localhost:${PORT}`);
 console.log(`🔄 LiveReload server on port ${LIVERELOAD_PORT}`);
-console.log(`📁 Watching ${CONTENT_DIR}, src/ for changes\n`);
+console.log(`📁 Watching ${CONTENT_DIR}, src/ for changes`);
+if (SHOW_DRAFTS) {
+  console.log(`📝 Showing drafts from ${join(CONTENT_DIR, "drafts")}`);
+}
+console.log("");
 
 serve({
   fetch: app.fetch,

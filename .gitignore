@@ -4,6 +4,9 @@ dist/
 
 .dev.vars
 
+# 下書き（npm run dev:drafts でローカル確認用。コミットしない）
+content/drafts/
+
 # ローカル開発用
 *.local
 *.swp

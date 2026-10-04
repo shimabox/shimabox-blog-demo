@@ -35,6 +35,8 @@ http://localhost:8787 でアクセスできます。
 
 ファイルを編集・保存すると自動でリロードされます（LiveReload対応）。
 
+書きかけの記事は `content/drafts/` に置き、`npm run dev:drafts` で起動すると「【下書き】」付きで確認できます（`content/drafts/` はコミットされません）。
+
 https://github.com/user-attachments/assets/388c889e-ed50-4e47-8e79-65fe77b90dca
 
 ## ドキュメント
